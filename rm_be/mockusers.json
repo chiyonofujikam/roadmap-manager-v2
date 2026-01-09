@@ -1,0 +1,61 @@
+{
+  "users": {
+    "admin@example.com": {
+      "id": "admin-001",
+      "username": "admin",
+      "email": "admin@example.com",
+      "name": "Admin User",
+      "user_type": "admin",
+      "roles": ["admin", "collaborator"],
+      "password": "admin123"
+    },
+    "responsible@example.com": {
+      "id": "responsible-001",
+      "username": "responsible",
+      "email": "responsible@example.com",
+      "name": "Responsible User",
+      "user_type": "responsible",
+      "roles": ["responsible"],
+      "password": "responsible123"
+    },
+    "collaborator1@example.com": {
+      "id": "collab-001",
+      "username": "collaborator1",
+      "email": "collaborator1@example.com",
+      "name": "Collaborator One",
+      "user_type": "collaborator",
+      "roles": ["collaborator"],
+      "password": "collab123",
+      "responsible_id": "responsible-001"
+    },
+    "collaborator2@example.com": {
+      "id": "collab-002",
+      "username": "collaborator2",
+      "email": "collaborator2@example.com",
+      "name": "Collaborator Two",
+      "user_type": "collaborator",
+      "roles": ["collaborator"],
+      "password": "collab123",
+      "responsible_id": "responsible-001"
+    },
+    "collaborator3@example.com": {
+      "id": "collab-003",
+      "username": "collaborator3",
+      "email": "collaborator3@example.com",
+      "name": "Collaborator Three",
+      "user_type": "collaborator",
+      "roles": ["collaborator"],
+      "password": "collab123",
+      "responsible_id": "responsible-001"
+    }
+  },
+  "notes": {
+    "usage": "In mock mode, use the user's email or username as the Bearer token",
+    "example": "Authorization: Bearer admin@example.com",
+    "user_types": {
+      "admin": "Full system access",
+      "responsible": "Can manage team and validate entries",
+      "collaborator": "Can only access own pointage entries"
+    }
+  }
+}

@@ -10,6 +10,8 @@ build/
 .venv/
 venv/
 env/
+rm_be/.env
+rm_fe/.env
 
 # Node
 node_modules/

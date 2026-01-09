@@ -17,8 +17,6 @@ export function TeamPointageTable() {
       
       const data = await api.getTeamPointageEntries();
       setEntries(data.entries || []);
-      
-      console.log('✅ Loaded team pointage entries:', data.total);
     } catch (err) {
       console.error('❌ Error loading team pointage entries:', err);
       setError(err.message || 'Failed to load team pointage entries');

@@ -19,7 +19,7 @@ async def initialize_database():
         print("Database initialized successfully!")
         collections = await db.list_collection_names()
         print(f"\nCollections: {', '.join(collections) if collections else 'None'}")
-        
+
     except Exception as e:
         print(f"Error initializing database: {e}")
         raise

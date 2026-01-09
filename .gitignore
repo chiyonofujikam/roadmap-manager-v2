@@ -1,20 +1,29 @@
-# Python
+# Python (backend)
+rm_be/__pycache__/
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 *.egg-info/
+rm_be/dist/
+rm_be/build/
 dist/
 build/
+rm_be/.venv/
+rm_be/venv/
+rm_be/env/
 .venv/
 venv/
 env/
 rm_be/.env
 rm_fe/.env
 
-# Node
-node_modules/
+# Node (frontend)
+rm_fe/node_modules/
+rm_fe/dist/
+rm_fe/build/
+rm_fe/package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -9,6 +9,11 @@ export function formatDate(date) {
   return date.toISOString().split('T')[0];
 }
 
+export function normalizeDateString(dateStr) {
+  if (!dateStr) return null;
+  return String(dateStr).split('T')[0];
+}
+
 export function getWeekDays(weekStart) {
   const days = [];
   for (let i = 0; i < 7; i++) {

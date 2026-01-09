@@ -76,6 +76,13 @@ class UserRepository(BaseRepository):
         doc["created_at"] = datetime.utcnow()
         doc["updated_at"] = datetime.utcnow()
 
+        # Ensure responsible_id is stored as ObjectId, not string
+        if "responsible_id" in doc and doc["responsible_id"]:
+            if isinstance(doc["responsible_id"], str) and ObjectId.is_valid(doc["responsible_id"]):
+                doc["responsible_id"] = ObjectId(doc["responsible_id"])
+            elif not isinstance(doc["responsible_id"], ObjectId):
+                raise ValueError(f"Invalid responsible_id type: {type(doc['responsible_id'])}")
+
         try:
             result = await self.collection.insert_one(doc)
             return result.inserted_id
@@ -88,6 +95,13 @@ class UserRepository(BaseRepository):
         doc = user.model_dump(by_alias=True, exclude={"id", "created_at", "created_by"})
         doc["updated_at"] = datetime.utcnow()
         doc["updated_by"] = updated_by
+
+        # Ensure responsible_id is stored as ObjectId, not string
+        if "responsible_id" in doc and doc["responsible_id"]:
+            if isinstance(doc["responsible_id"], str) and ObjectId.is_valid(doc["responsible_id"]):
+                doc["responsible_id"] = ObjectId(doc["responsible_id"])
+            elif not isinstance(doc["responsible_id"], ObjectId):
+                raise ValueError(f"Invalid responsible_id type: {type(doc['responsible_id'])}")
 
         result = await self.collection.update_one(
             {"_id": document_id}, {"$set": doc}
@@ -158,11 +172,13 @@ class UserRepository(BaseRepository):
 
     async def find_by_responsible(self, responsible_id: ObjectId, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """Find all collaborators managed by a responsible"""
+        # Handle both ObjectId and string responsible_id (for backward compatibility)
+        responsible_id_str = str(responsible_id) if isinstance(responsible_id, ObjectId) else responsible_id
         return await self.find_many(
             {
-                "responsible_id": responsible_id,
+                "responsible_id": {"$in": [responsible_id, responsible_id_str]},
                 "user_type": "collaborator",
-                "is_deleted": False,
+                "is_deleted": {"$ne": True},  # Use $ne: True to handle missing field
             },
             skip=skip,
             limit=limit,
@@ -328,6 +344,13 @@ class PointageEntryRepository(BaseRepository):
         doc["created_at"] = datetime.utcnow()
         doc["updated_at"] = datetime.utcnow()
 
+        # Ensure user_id is stored as ObjectId, not string
+        if "user_id" in doc:
+            if isinstance(doc["user_id"], str) and ObjectId.is_valid(doc["user_id"]):
+                doc["user_id"] = ObjectId(doc["user_id"])
+            elif not isinstance(doc["user_id"], ObjectId):
+                raise ValueError(f"Invalid user_id type: {type(doc['user_id'])}")
+
         if "entry_data" in doc and doc["entry_data"]:
 
             entry_data = doc["entry_data"]
@@ -439,23 +462,36 @@ class PointageEntryRepository(BaseRepository):
         )
 
     async def find_by_team(self, responsible_id: ObjectId, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-        """Find entries for all collaborators in a responsible's team"""
+        """
+        Find entries for all collaborators in a responsible's team.
+
+        Args:
+            responsible_id: ObjectId of the responsible user
+            skip: Number of entries to skip for pagination
+            limit: Maximum number of entries to return
+
+        Returns:
+            List of pointage entry dictionaries
+        """
         user_repo = UserRepository()
         team_members = await user_repo.find_by_responsible(responsible_id)
-        print(f"👥 Found {len(team_members)} team members for responsible {responsible_id}")
-
         team_user_ids = [member["_id"] for member in team_members]
-        print(f"👥 Team user IDs: {[str(uid) for uid in team_user_ids]}")
 
         if not team_user_ids:
-            print("⚠️ No team members found, returning empty list")
             return []
 
+        team_user_ids_with_strings = []
+        for uid in team_user_ids:
+            team_user_ids_with_strings.append(uid)
+            if isinstance(uid, ObjectId):
+                team_user_ids_with_strings.append(str(uid))
+            elif isinstance(uid, str) and ObjectId.is_valid(uid):
+                team_user_ids_with_strings.append(ObjectId(uid))
+
         query = {
-            "user_id": {"$in": team_user_ids},
-            "is_deleted": False,
+            "user_id": {"$in": team_user_ids_with_strings},
+            "is_deleted": {"$ne": True},
         }
-        print(f"🔍 Querying pointage entries with: {query}")
 
         entries = await self.find_many(
             query,
@@ -464,7 +500,6 @@ class PointageEntryRepository(BaseRepository):
             sort=[("entry_data.date_pointage", -1), ("created_at", -1)],
         )
 
-        print(f"✅ Found {len(entries)} pointage entries for team")
         return entries
 
     async def find_by_lc_column_value(self, column_name: str, value: str, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:

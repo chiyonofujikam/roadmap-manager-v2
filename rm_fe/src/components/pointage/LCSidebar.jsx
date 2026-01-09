@@ -25,12 +25,6 @@ export function LCSidebar({ formData, onChange, disabled }) {
       setClefImputationOptions(data.clef_imputation || []);
       setLibelleOptions(data.libelle || []);
       setFonctionOptions(data.fonction || []);
-      
-      console.log('✅ Loaded LC options from database:', {
-        clef_imputation: data.clef_imputation?.length || 0,
-        libelle: data.libelle?.length || 0,
-        fonction: data.fonction?.length || 0,
-      });
     } catch (err) {
       console.error('❌ Error loading LC options:', err);
       setError(err.message || 'Failed to load LC options');

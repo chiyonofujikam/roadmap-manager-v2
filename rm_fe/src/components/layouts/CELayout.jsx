@@ -1,12 +1,7 @@
 import { useAuth } from '../../hooks/useAuth';
 import { LogOut } from 'lucide-react';
 
-const FORCE_MOCK_MODE = true; // Toggle to show/hide demo badge
-const IS_MOCK_MODE = 
-  FORCE_MOCK_MODE ||
-  !import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.VITE_SUPABASE_URL === '' ||
-  import.meta.env.VITE_SUPABASE_URL === 'https://mock.supabase.co';
+const IS_MOCK_MODE = true;
 
 export function CELayout({ children }) {
   const { user, signOut } = useAuth();

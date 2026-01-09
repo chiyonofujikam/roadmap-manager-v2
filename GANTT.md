@@ -1,60 +1,51 @@
 # Roadmap Management System - Project Gantt Chart
 
+## Project Description
+
+The Roadmap Management System is a web-based time tracking and project management application designed for teams to manage pointage (time entries) with role-based access control. The system allows collaborators to fill daily time entries, responsibles to manage teams and validate entries, and admins to perform system-wide operations.
+
 ## Gantt Chart Visualization
 
 ```mermaid
 gantt
-    title Roadmap Management System - 2 Month Timeline
+    title Roadmap Management System
     dateFormat  YYYY-MM-DD
-    section Phase 1: Foundation
-    Project setup & architecture        :done, setup, 2025-01-01, 3d
-    Backend structure setup            :done, backend-setup, 2025-01-04, 2d
-    Frontend structure setup           :done, frontend-setup, 2025-01-06, 2d
-    Database schema & models           :done, db-schema, 2025-01-08, 2d
-    MongoDB setup                      :done, mongodb, 2025-01-10, 1d
-    Docker setup                       :done, docker, 2025-01-11, 1d
-    Authentication system              :done, auth, 2025-01-12, 3d
-    Frontend auth integration          :done, frontend-auth, 2025-01-15, 2d
+    section Phase 1: Backend/Logic
+    Project setup & architecture                      :setup, 2026-02-01, 4d
+    Backend structure setup                           :backend-setup, 2026-02-05, 3d
+    Database schema & models & MongoDB setup          :db-schema, 2026-02-08, 4d
+    Docker setup for MongoDB                          :docker, 2026-02-12, 2d
+    Authentication system (Keycloak)                  :auth, 2026-02-14, 5d
+    User management endpoints  (CRUD)                 :user-api, 2026-02-19, 3d
+    Conditional Lists CRUD (CRUD)                     :lc-api, 2026-02-22, 2d
+    Pointage entries CRUD (CRUD)                      :pointage-api, 2026-02-24, 3d
+    Pointage validation endpoints (CRUD)              :validation-api, 2026-02-27, 3d
+    Excel export backend (CRUD)                       :excel-export-backend, 2026-03-02, 2d
+    Excel import backend (CRUD)                       :excel-import-backend, 2026-03-04, 2d
+    Pointage data export backend (CRUD)               :data-export-backend, 2026-03-06, 2d
+    Unit tests & integration testing (CRUD)           :tests-backend, 2026-03-08, 4d
+    End-to-end testing (backend)                      :e2e-backend, 2026-03-12, 4d
+    Performance optimization (CRUD)                   :perf, 2026-03-16, 3d
+    Security audit (CRUD)                             :security, 2026-03-19, 3d
+    Deployment configuration (CRUD)                   :deploy-config, 2026-03-22, 4d
+    Production deployment (CRUD)                      :deploy, 2026-03-26, 2d
     
-    section Phase 2: Core Backend API
-    User management endpoints          :active, user-api, 2025-01-17, 2d
-    Conditional Lists CRUD             :lc-api, 2025-01-19, 3d
-    Pointage entries CRUD             :pointage-api, 2025-01-22, 3d
-    Pointage validation endpoints      :validation-api, 2025-01-25, 2d
-    Background jobs API                :jobs-api, 2025-01-27, 2d
-    Audit logging service              :audit, 2025-01-29, 1d
-    API documentation                  :docs, 2025-01-30, 1d
-    Unit tests                         :tests-backend, 2025-01-31, 2d
-    
-    section Phase 3: Frontend Core
-    Collaborator pointage view         :active, pointage-view, 2025-02-03, 4d
-    Pointage entry form                :entry-form, 2025-02-07, 3d
-    Save/Submit workflow               :workflow, 2025-02-10, 2d
-    Admin/Responsible dashboard        :done, admin-dash, 2025-02-12, 2d
-    Team management UI                  :team-ui, 2025-02-14, 3d
-    LC management UI                    :lc-ui, 2025-02-17, 2d
-    Pointage validation UI             :validation-ui, 2025-02-19, 2d
-    
-    section Phase 4: Advanced Features
-    Background jobs UI                 :jobs-ui, 2025-02-21, 2d
-    Excel export                       :excel-export, 2025-02-23, 2d
-    Excel import                       :excel-import, 2025-02-25, 2d
-    Pointage data export               :data-export, 2025-02-27, 1d
-    Integration testing                :integration, 2025-02-28, 1d
-    
-    section Phase 5: Testing & Deployment
-    End-to-end testing                  :e2e, 2025-03-01, 2d
-    Performance optimization           :perf, 2025-03-03, 1d
-    Security audit                     :security, 2025-03-04, 1d
-    User documentation                 :user-docs, 2025-03-05, 1d
-    Deployment config                  :deploy-config, 2025-03-06, 1d
-    Production deployment              :deploy, 2025-03-07, 1d
-    Bug fixes & polish                 :polish, 2025-03-08, 1d
+    section Phase 2: Frontend/UI
+    Frontend structure setup            :frontend-setup, 2026-03-30, 2d
+    Frontend auth integration           :frontend-auth, 2026-04-01, 4d
+    Collaborator pointage view          :pointage-view, 2026-04-05, 2d
+    Pointage entry form                 :entry-form, 2026-04-07, 3d
+    Save/Submit workflow                :workflow, 2026-04-10, 3d
+    Admin/Responsible dashboard         :admin-dash, 2026-04-13, 3d
+    Team management UI (Responsible)    :team-ui, 2026-04-16, 4d
+    Conditional Lists management UI     :lc-ui, 2026-04-20, 3d
+    Pointage validation UI              :validation-ui, 2026-04-23, 3d
+    Excel export UI                     :excel-export-ui, 2026-04-26, 3d
+    Excel import UI                     :excel-import-ui, 2026-04-29, 3d
+    End-to-end testing (frontend)       :e2e-frontend, 2026-05-02, 2d
+    User documentation                  :user-docs, 2026-05-04, 2d
+    Bug fixes & polish                  :polish, 2026-05-06, 1d
 ```
-
-## Project Description
-
-The Roadmap Management System is a web-based time tracking and project management application designed for teams to manage pointage (time entries) with role-based access control. The system allows collaborators to fill daily time entries, responsibles to manage teams and validate entries, and admins to perform system-wide operations.
 
 ### Key Features
 
@@ -81,314 +72,53 @@ The Roadmap Management System is a web-based time tracking and project managemen
 
 ---
 
-## Project Timeline: 2 Months (8 Weeks)
+## Project Timeline
 
-### Phase 1: Foundation & Setup (Week 1-2)
-**Duration: 2 weeks**
+### Phase 1: Backend/Logic
+**Duration: 54 days** (February 1 - March 27, 2026)
 
-| Task | Duration | Status |
-|------|----------|--------|
-| Project setup and architecture design | 3 days | ✅ Complete |
-| Backend project structure setup | 2 days | ✅ Complete |
-| Frontend project structure setup | 2 days | ✅ Complete |
-| Database schema design and models | 2 days | ✅ Complete |
-| MongoDB setup and configuration | 1 day | ✅ Complete |
-| Docker setup for MongoDB | 1 day | ✅ Complete |
-| Authentication system (Keycloak + Mock) | 3 days | ✅ Complete |
-| Frontend authentication integration | 2 days | ✅ Complete |
+This phase focuses on building the complete backend infrastructure, APIs, and business logic for the Roadmap Management System.
 
-**Deliverables:**
-- ✅ Backend API structure
-- ✅ Frontend React application
-- ✅ Authentication system (mock + Keycloak)
-- ✅ Database models and indexes
-- ✅ Docker configuration
+### Phase 2: Frontend/UI
+**Duration: 37 days** (March 30 - May 6, 2026)
 
----
+This phase focuses on building the complete user interface and frontend functionality for the Roadmap Management System.
 
-### Phase 2: Core Backend API (Week 3-4)
-**Duration: 2 weeks**
+### All Tasks
 
-| Task | Duration | Status |
-|------|----------|--------|
-| User management endpoints | 2 days | 🔄 In Progress |
-| Conditional Lists (LC) CRUD endpoints | 3 days | ⏳ Pending |
-| Pointage entries CRUD endpoints | 3 days | ⏳ Pending |
-| Pointage validation endpoints | 2 days | ⏳ Pending |
-| Background jobs API endpoints | 2 days | ⏳ Pending |
-| Audit logging service | 1 day | ⏳ Pending |
-| API documentation (OpenAPI/Swagger) | 1 day | ⏳ Pending |
-| Unit tests for services | 2 days | ⏳ Pending |
-
-**Deliverables:**
-- User management API
-- Conditional Lists API
-- Pointage entries API
-- Background jobs API
-- API documentation
-
----
-
-### Phase 3: Frontend Core Features (Week 5-6)
-**Duration: 2 weeks**
-
-| Task | Duration | Status |
-|------|----------|--------|
-| Collaborator pointage view (weekly calendar) | 4 days | 🔄 In Progress |
-| Pointage entry form with LC autocomplete | 3 days | ⏳ Pending |
-| Save/Submit workflow for entries | 2 days | ⏳ Pending |
-| Admin/Responsible dashboard view | 2 days | ✅ Complete |
-| Team management interface (Responsible) | 3 days | ⏳ Pending |
-| Conditional Lists management UI | 2 days | ⏳ Pending |
-| Pointage validation interface | 2 days | ⏳ Pending |
-
-**Deliverables:**
-- Complete collaborator pointage interface
-- Admin/Responsible dashboard
-- Team management UI
-- LC management UI
+| Phase | Category | Task | Duration | Description |
+|-------|----------|------|----------|-------------|
+| Backend/Logic | Foundation & Setup | Project setup and architecture | 4 days | Define project architecture and structure, set up repository and version control, configure development environment |
+| Backend/Logic | Foundation & Setup | Backend structure setup | 3 days | Initialize FastAPI application, create project modules and directory structure, set up configuration management |
+| Backend/Logic | Foundation & Setup | Database schema & models & MongoDB setup | 4 days | Design MongoDB database schema, define data models (User, Pointage, LC, etc.), create database indexes and relationships, install and configure MongoDB, set up database connections, configure database security |
+| Backend/Logic | Foundation & Setup | Docker setup for MongoDB | 2 days | Create Docker configuration for MongoDB, set up container orchestration |
+| Backend/Logic | Foundation & Setup | Authentication system (Keycloak) | 5 days | Integrate Keycloak authentication, set up JWT token handling and validation |
+| Backend/Logic | API Development | User management endpoints (CRUD) | 3 days | Implement CRUD operations for users, user role management, user search and filtering |
+| Backend/Logic | API Development | Conditional Lists CRUD (CRUD) | 2 days | Implement CRUD operations for conditional lists, LC activation/deactivation, LC bulk operations |
+| Backend/Logic | API Development | Pointage entries CRUD (CRUD) | 3 days | Implement CRUD operations for pointage entries, entry status management (draft, submitted, validated, rejected), entry filtering and search |
+| Backend/Logic | API Development | Pointage validation endpoints (CRUD) | 3 days | Implement validation workflow, bulk validation operations, rejection handling |
+| Backend/Logic | Excel & Data Export | Excel export backend (CRUD) | 2 days | Export pointage data to Excel format, export LC data to Excel, Excel file generation with formatting |
+| Backend/Logic | Excel & Data Export | Excel import backend (CRUD) | 2 days | Parse Excel files, validate imported data, bulk import processing with error handling |
+| Backend/Logic | Excel & Data Export | Pointage data export backend (CRUD) | 2 days | XML export functionality, additional export formats (CSV, JSON), export job management |
+| Backend/Logic | Testing & Deployment | Unit tests & integration testing (CRUD) | 4 days | Write unit tests for services, API endpoint tests, integration tests |
+| Backend/Logic | Testing & Deployment | End-to-end testing (backend) | 4 days | Backend API testing, integration testing with external services, performance testing |
+| Backend/Logic | Testing & Deployment | Performance optimization (CRUD) | 3 days | Identify performance bottlenecks, optimize database queries, implement caching strategies |
+| Backend/Logic | Testing & Deployment | Security audit (CRUD) | 3 days | Security vulnerability assessment, code security review, implement security best practices |
+| Backend/Logic | Testing & Deployment | Deployment configuration (CRUD) | 4 days | Set up deployment scripts, configure production environment, set up monitoring and logging |
+| Backend/Logic | Testing & Deployment | Production deployment (CRUD) | 2 days | Deploy to production environment, verify deployment, set up backup and recovery |
+| Frontend/UI | Foundation & Setup | Frontend structure setup | 2 days | Initialize React application with Vite, set up project structure and routing, configure Tailwind CSS |
+| Frontend/UI | Foundation & Setup | Frontend auth integration | 4 days | Integrate authentication with backend, implement login/logout functionality, set up protected routes |
+| Frontend/UI | Collaborator Interface | Collaborator pointage view | 2 days | Build weekly calendar grid (Monday-Sunday), implement week navigation, display entry status indicators, day selection and entry display |
+| Frontend/UI | Collaborator Interface | Pointage entry form | 3 days | Create pointage entry form, implement LC autocomplete inputs (clef_imputation, libelle, fonction), date besoin input, heures théoriques/passées inputs, commentaires textarea, form validation |
+| Frontend/UI | Collaborator Interface | Save/Submit workflow | 3 days | Implement save as draft functionality, submit for validation workflow, lock submitted entries, status indicators and feedback |
+| Frontend/UI | Admin/Responsible Interface | Admin/Responsible dashboard | 3 days | User information display, role-based dashboard content, quick access to key features |
+| Frontend/UI | Admin/Responsible Interface | Team management UI (Responsible) | 4 days | View team members, filter by team, team statistics and overview, team member management |
+| Frontend/UI | Admin/Responsible Interface | Conditional Lists management UI | 3 days | List LC items with filtering, add/edit/delete LC items, activate/deactivate items, bulk operations |
+| Frontend/UI | Admin/Responsible Interface | Pointage validation UI | 3 days | View submitted entries, validate/reject entries, bulk validation operations, entry details and history |
+| Frontend/UI | Advanced Features | Excel export UI | 3 days | Export pointage data UI, export LC data UI, file download handling, export progress indicators |
+| Frontend/UI | Advanced Features | Excel import UI | 3 days | File upload interface, import progress tracking, error display and handling, import validation feedback |
+| Frontend/UI | Testing & Documentation | End-to-end testing (frontend) | 2 days | Frontend E2E tests, user flow testing, cross-browser testing |
+| Frontend/UI | Testing & Documentation | User documentation | 2 days | User guides and tutorials, feature documentation, help system integration |
+| Frontend/UI | Testing & Documentation | Bug fixes & polish | 1 day | Bug fixes, UI/UX improvements, final testing and refinements |
 
 ---
-
-### Phase 4: Advanced Features & Integration (Week 7)
-**Duration: 1 week**
-
-| Task | Duration | Status |
-|------|----------|--------|
-| Background jobs UI (status, progress) | 2 days | ⏳ Pending |
-| Excel export functionality | 2 days | ⏳ Pending |
-| Excel import functionality | 2 days | ⏳ Pending |
-| Pointage data export (XML/Excel) | 1 day | ⏳ Pending |
-| Integration testing | 1 day | ⏳ Pending |
-
-**Deliverables:**
-- Background jobs monitoring
-- Excel import/export
-- Data export features
-
----
-
-### Phase 5: Testing, Documentation & Deployment (Week 8)
-**Duration: 1 week**
-
-| Task | Duration | Status |
-|------|----------|--------|
-| End-to-end testing | 2 days | ⏳ Pending |
-| Performance testing and optimization | 1 day | ⏳ Pending |
-| Security audit | 1 day | ⏳ Pending |
-| User documentation | 1 day | ⏳ Pending |
-| Deployment configuration | 1 day | ⏳ Pending |
-| Production deployment | 1 day | ⏳ Pending |
-| Bug fixes and final polish | 1 day | ⏳ Pending |
-
-**Deliverables:**
-- Tested and documented system
-- Production-ready deployment
-- User documentation
-
----
-
-## Detailed Task Breakdown
-
-### Backend Development (3.5 weeks)
-
-#### Week 3: User & LC Management
-- **User Management API** (2 days)
-  - GET /api/v1/users - List users
-  - POST /api/v1/users - Create user
-  - GET /api/v1/users/{id} - Get user
-  - PATCH /api/v1/users/{id} - Update user
-  - DELETE /api/v1/users/{id} - Delete user
-
-- **Conditional Lists API** (3 days)
-  - GET /api/v1/conditional-lists - List LC
-  - POST /api/v1/conditional-lists - Create LC
-  - GET /api/v1/conditional-lists/{id} - Get LC
-  - PATCH /api/v1/conditional-lists/{id} - Update LC
-  - POST /api/v1/conditional-lists/{id}/apply - Apply LC updates
-  - DELETE /api/v1/conditional-lists/{id} - Delete LC
-
-#### Week 4: Pointage & Background Jobs
-- **Pointage Entries API** (3 days)
-  - GET /api/v1/pointage/entries - List entries
-  - POST /api/v1/pointage/entries - Create entry
-  - GET /api/v1/pointage/entries/{id} - Get entry
-  - PATCH /api/v1/pointage/entries/{id} - Update entry
-  - POST /api/v1/pointage/entries/{id}/submit - Submit entry
-  - POST /api/v1/pointage/entries/{id}/validate - Validate entry
-  - POST /api/v1/pointage/entries/{id}/reject - Reject entry
-
-- **Background Jobs API** (2 days)
-  - GET /api/v1/jobs - List jobs
-  - GET /api/v1/jobs/{id} - Get job status
-  - POST /api/v1/jobs/{id}/cancel - Cancel job
-
-- **Audit Logging** (1 day)
-  - Audit service implementation
-  - Audit log endpoints
-
-### Frontend Development (3 weeks)
-
-#### Week 5: Collaborator Interface
-- **Weekly Calendar View** (4 days)
-  - Calendar grid (Monday-Sunday)
-  - Week navigation
-  - Entry status indicators
-  - Day selection
-
-- **Pointage Entry Form** (3 days)
-  - LC autocomplete inputs (clef_imputation, libelle, fonction)
-  - Date besoin input
-  - Heures théoriques/passées inputs
-  - Commentaires textarea
-  - Form validation
-
-- **Save/Submit Workflow** (2 days)
-  - Save as draft
-  - Submit for validation
-  - Lock submitted entries
-  - Status indicators
-
-#### Week 6: Admin/Responsible Interface
-- **Admin/Responsible Dashboard** (2 days) ✅
-  - User information display
-  - Role-based message
-
-- **Team Management** (3 days)
-  - View team members
-  - Filter by team
-  - Team statistics
-
-- **LC Management UI** (2 days)
-  - List LC items
-  - Add/Edit/Delete LC items
-  - Activate/Deactivate items
-
-- **Pointage Validation** (2 days)
-  - View submitted entries
-  - Validate/Reject entries
-  - Bulk validation
-
-#### Week 7: Advanced Features
-- **Background Jobs UI** (2 days)
-  - Job list view
-  - Job status monitoring
-  - Progress indicators
-
-- **Excel Operations** (4 days)
-  - Export pointage data
-  - Import pointage data
-  - Export LC data
-  - Import LC data
-
----
-
-## Resource Allocation
-
-### Development Team (Recommended)
-
-- **1 Backend Developer** (Full-time, 2 months)
-  - FastAPI development
-  - MongoDB integration
-  - Background jobs
-  - API design
-
-- **1 Frontend Developer** (Full-time, 2 months)
-  - React development
-  - UI/UX implementation
-  - State management
-  - API integration
-
-- **1 Full-Stack Developer** (Part-time, 1 month)
-  - Integration work
-  - Testing
-  - Documentation
-
-### Alternative: Single Full-Stack Developer
-- **1 Full-Stack Developer** (Full-time, 2 months)
-  - All backend and frontend work
-  - Testing and deployment
-
----
-
-## Milestones
-
-### Milestone 1: Foundation Complete (End of Week 2)
-- ✅ Authentication system working
-- ✅ Database structure in place
-- ✅ Basic API endpoints
-- ✅ Frontend authentication
-
-### Milestone 2: Core Backend Complete (End of Week 4)
-- All CRUD endpoints implemented
-- Background jobs system
-- Audit logging
-
-### Milestone 3: Core Frontend Complete (End of Week 6)
-- Collaborator interface complete
-- Admin/Responsible interfaces
-- All workflows functional
-
-### Milestone 4: Feature Complete (End of Week 7)
-- Excel import/export
-- Background jobs UI
-- All features implemented
-
-### Milestone 5: Production Ready (End of Week 8)
-- All tests passing
-- Documentation complete
-- Deployed to production
-
----
-
-## Risk Factors & Mitigation
-
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Keycloak integration complexity | High | Medium | Use mock auth for development, integrate Keycloak in Phase 5 |
-| MongoDB performance issues | Medium | Low | Proper indexing, query optimization |
-| Frontend-backend integration delays | Medium | Medium | Early API contract definition, mock data |
-| Excel file format complexity | Low | Medium | Use proven libraries (openpyxl), extensive testing |
-| Background jobs scalability | Medium | Low | Use Celery with Redis, proper job queuing |
-
----
-
-## Dependencies
-
-### Critical Path
-1. Authentication → All other features
-2. Database models → API endpoints → Frontend integration
-3. Pointage API → Frontend pointage view
-4. LC API → LC management UI
-
-### Parallel Work
-- Frontend UI development can proceed in parallel with backend API development (using mock data)
-- Documentation can be written alongside development
-- Testing can be done incrementally
-
----
-
-## Notes
-
-- **Current Status**: Phase 1 (Foundation) is complete
-- **Next Priority**: Phase 2 (Core Backend API) - User and LC management endpoints
-- **Buffer Time**: 1-2 days buffer included in each phase for unexpected issues
-- **Contingency**: If delays occur, Excel import/export can be moved to post-MVP
-
----
-
-## Progress Tracking
-
-**Overall Progress: ~15% Complete**
-
-- ✅ Phase 1: Foundation & Setup (100%)
-- 🔄 Phase 2: Core Backend API (10%)
-- 🔄 Phase 3: Frontend Core Features (30%)
-- ⏳ Phase 4: Advanced Features (0%)
-- ⏳ Phase 5: Testing & Deployment (0%)
-
----
-
-**Last Updated**: January 7, 2025  
-**Project Start**: January 2025  
-**Target Completion**: March 2025

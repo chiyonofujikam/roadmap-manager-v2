@@ -22,14 +22,8 @@ async def lifespan(app: FastAPI):
 
     db = get_database()
     await create_indexes(db)
-
     if not settings.use_mock_auth:
-        try:
-            get_keycloak_client()
-        except Exception as e:
-            if settings.debug:
-                print(f"Warning: Keycloak initialization failed: {e}")
-                print("Consider using USE_MOCK_AUTH=true for testing")
+        get_keycloak_client()
 
     yield
     await close_database()
@@ -51,7 +45,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/")
 async def root():
     """Root endpoint"""
@@ -61,7 +54,6 @@ async def root():
         "status": "running",
         "authentication": "keycloak" if not settings.use_mock_auth else "mock",
     }
-
 
 @app.get("/health")
 async def health_check():
@@ -74,7 +66,6 @@ async def health_check():
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
-
 @app.get("/auth/me")
 async def get_current_user_info(current_user: dict = CurrentUser):
     """Get current authenticated user information"""
@@ -82,7 +73,6 @@ async def get_current_user_info(current_user: dict = CurrentUser):
         "user": current_user,
         "message": "Authentication successful"
     }
-
 
 @app.get("/auth/admin")
 async def admin_only_endpoint(current_user: dict = RequireAdmin):
@@ -92,7 +82,6 @@ async def admin_only_endpoint(current_user: dict = RequireAdmin):
         "user": current_user
     }
 
-
 @app.get("/auth/responsible")
 async def responsible_only_endpoint(current_user: dict = RequireResponsible):
     """Example responsible-only endpoint"""
@@ -100,7 +89,6 @@ async def responsible_only_endpoint(current_user: dict = RequireResponsible):
         "message": "Responsible access granted",
         "user": current_user
     }
-
 
 @app.get("/auth/collaborator")
 async def collaborator_only_endpoint(current_user: dict = RequireCollaborator):

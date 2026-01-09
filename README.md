@@ -4,13 +4,13 @@ A web-based time tracking and project management application with role-based acc
 
 ## 🚀 Quick Start
 
-### Run Everything with Docker (Recommended)
+### Option 1: Run Everything with Docker (Recommended for Quick Testing)
 
 Start the entire application stack (MongoDB + Backend + Frontend) with one command:
 
 ```bash
 docker-compose -f docker-compose_mock.yml up -d
-or 
+# or with rebuild
 docker-compose -f docker-compose_mock.yml up -d --build
 ```
 
@@ -21,32 +21,82 @@ This will start:
 
 Access the application at: **http://localhost:5173**
 
-### View Logs
-
+**View Logs:**
 ```bash
 docker-compose -f docker-compose_mock.yml logs -f
 ```
 
-### Stop Services
-
+**Stop Services:**
 ```bash
 docker-compose -f docker-compose_mock.yml down
+```
+
+### Option 2: Local Development (Recommended for Active Development)
+
+For faster development without Docker rebuilds, use local development setup.
+
+#### Quick Start with Script (Windows)
+
+Double-click `start-local.bat` or run:
+```bash
+start-local.bat
+```
+
+The script will:
+- Start MongoDB in Docker (if not running)
+- Install dependencies
+- Initialize database and seed data
+- Open backend (port 8000) and frontend (port 5173) in separate windows
+
+#### Manual Local Setup
+
+**1. Start MongoDB:**
+```bash
+docker run -d --name roadmap_mongodb -p 27017:27017 mongo:6.0
+```
+
+**2. Backend Setup:**
+```bash
+cd rm_be
+uv sync
+uv run python -m rm_be.database.init_db
+uv run python -m rm_be.scripts.seed_users
+uv run python -m rm_be.scripts.seed_lc_data
+uv run uvicorn rm_be.main:app --reload
+```
+
+**3. Frontend Setup** (in a new terminal):
+```bash
+cd rm_fe
+npm install
+npm run dev
 ```
 
 ## 📁 Project Structure
 
 ```
-roadmap_manager_v2/
-├── rm_be/              # FastAPI Backend
-│   ├── rm_be/          # Application code
-│   ├── README.md       # Backend documentation
-│   └── Dockerfile      # Backend container
-├── rm_fe/              # React Frontend
-│   ├── src/            # Application code
-│   ├── README.md       # Frontend documentation
-│   └── Dockerfile      # Frontend container
-├── docker-compose_mock.yml  # Full stack Docker setup
-└── GANTT.md            # Project timeline and planning
+roadmap-manager-v2/
+├── rm_be/                      # FastAPI Backend
+│   ├── rm_be/                  # Application code
+│   │   ├── api/                # API routes and schemas
+│   │   ├── core/               # Core security and utilities
+│   │   ├── database/           # Database models and repositories
+│   │   ├── scripts/            # Database seeding scripts
+│   │   └── main.py             # FastAPI application entry point
+│   ├── mockusers.json          # Mock user data
+│   ├── Dockerfile              # Backend container
+│   └── pyproject.toml          # Python dependencies
+├── rm_fe/                      # React Frontend
+│   ├── src/                    # Application code
+│   │   ├── components/         # React components
+│   │   ├── contexts/           # React contexts
+│   │   ├── hooks/              # Custom hooks
+│   │   └── lib/                # API and utility libraries
+│   ├── Dockerfile              # Frontend container
+│   └── package.json            # Node dependencies
+├── docker-compose_mock.yml     # Full stack Docker setup
+├── start-local.bat             # Windows local development script
+└── README.md                   # This file
 ```
 
 ## 🎯 Features
@@ -71,12 +121,17 @@ roadmap_manager_v2/
 - Validate/reject pointage entries
 - Manage Conditional Lists (LC)
 - View team pointage data
+- Archive or Modify Weekly Time Entries of its team
+
 
 ### Admin
 - All Responsible permissions
 - Bulk data import
 - System cleanup operations
 - Full system management
+- Update Conditional Lists (LC)
+- Add/remove Users
+- Archive or Modify Weekly Time Entries
 
 ## 🛠️ Technology Stack
 
@@ -85,17 +140,12 @@ roadmap_manager_v2/
 - MongoDB
 - Keycloak (Authentication)
 - Celery (Background jobs)
+- uv (Python package manager)
 
 **Frontend:**
-- React
+- React.js
 - Vite
 - Tailwind CSS
-
-## 📚 Documentation
-
-- **Backend**: See [rm_be/README.md](./rm_be/README.md)
-- **Frontend**: See [rm_fe/README.md](./rm_fe/README.md)
-- **Project Planning**: See [GANTT.md](./GANTT.md)
 
 ## 🔐 Authentication
 
@@ -109,64 +159,36 @@ The system supports two authentication modes:
    - Full OAuth2/OIDC integration
    - JWT token-based authentication
 
-## 🧪 Testing
+## ⚙️ Environment Variables
 
-### Mock Users
+### Backend (`rm_be/.env`)
 
-Available test users (use email as token):
-- `admin@example.com` - Admin user
-- `responsible@example.com` - Responsible user
-- `collaborator1@example.com` - Collaborator user
-- `collaborator2@example.com` - Collaborator user
-- `collaborator3@example.com` - Collaborator user
-
-### Test Backend API
-
-```bash
-# Get current user
-curl -H "Authorization: Bearer admin@example.com" http://localhost:8000/auth/me
-
-# Test admin endpoint
-curl -H "Authorization: Bearer admin@example.com" http://localhost:8000/auth/admin
+```env
+MONGODB_URI=mongodb://localhost:27017/roadmap_db_dev
+MONGODB_DB_NAME=roadmap_db_dev
+USE_MOCK_AUTH=true
+DEBUG=true
+MOCK_USERS_FILE=mockusers.json
 ```
 
-## 📦 Development Setup
+### Frontend (`rm_fe/.env`)
 
-### Local Development (Recommended for Development)
-
-For faster development without Docker rebuilds, see **[LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md)** for detailed instructions.
-
-**Quick Start (Local):**
-
-**Windows:**
-```bash
-start-local.bat
+```env
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
-**Manual Setup:**
+**What is `VITE_API_BASE_URL` used for?**
 
-1. **Start MongoDB** (Docker or local):
-   ```bash
-   docker run -d --name roadmap_mongodb -p 27017:27017 mongo:6.0
-   ```
+This environment variable configures the base URL for all API calls from the frontend to the backend. It's used by the frontend API client (`rm_fe/src/lib/api.js`) to construct the full URL for all HTTP requests.
 
-2. **Backend:**
-   ```bash
-   cd rm_be
-   uv sync
-   uv run python -m rm_be.database.init_db
-   uv run python -m rm_be.scripts.seed_lc_data
-   uv run uvicorn rm_be.main:app --reload
-   ```
+- **Default**: If not set, it defaults to `http://localhost:8000`
+- **Purpose**: Allows you to configure different backend URLs for different environments (development, staging, production)
+- **Usage**: All API requests are prefixed with this URL (e.g., `${VITE_API_BASE_URL}/auth/me` becomes `http://localhost:8000/auth/me`)
 
-3. **Frontend** (new terminal):
-   ```bash
-   cd rm_fe
-   npm install
-   npm run dev
-   ```
-
-See [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for complete setup instructions.
+**When to change it:**
+- Backend runs on a different port (e.g., `http://localhost:8001`)
+- Backend is hosted on a different domain (e.g., `https://api.example.com`)
+- Different environments need different backend URLs
 
 ## 🐳 Docker Services
 
@@ -178,10 +200,56 @@ The `docker-compose_mock.yml` includes:
 
 All services are configured with mock authentication for easy testing.
 
-## 📝 License
+## 🔧 Troubleshooting
 
-[Add your license here]
+### MongoDB not running
 
-## 👨‍💻 Development
+```bash
+docker start roadmap_mongodb
+```
 
-For development guidelines and contribution instructions, see the individual README files in `rm_be/` and `rm_fe/` directories.
+### Port in use
+
+- **Backend**: Change port in uvicorn command: `uvicorn rm_be.main:app --reload --port 8001`
+- **Frontend**: Change port in `vite.config.js` or use `npm run dev -- --port 5174`
+
+### Reinstall dependencies
+
+**Backend:**
+```bash
+cd rm_be
+uv sync
+```
+
+**Frontend:**
+```bash
+cd rm_fe
+rm -rf node_modules
+npm install
+```
+
+### Database reset
+
+To reset the database and reseed data:
+
+```bash
+cd rm_be
+uv run python -m rm_be.database.init_db
+uv run python -m rm_be.scripts.seed_users
+uv run python -m rm_be.scripts.seed_lc_data
+```
+
+## 🚦 Development Workflow
+
+1. **Start MongoDB** (if using local development)
+2. **Start Backend** - API will be available at `http://localhost:8000`
+3. **Start Frontend** - UI will be available at `http://localhost:5173`
+4. **Access Swagger UI** - API documentation at `http://localhost:8000/docs`
+
+## 📝 Notes
+
+- The backend uses `uv` for Python package management
+- Mock authentication is enabled by default for development
+- All test users are seeded automatically when running `seed_users` script
+- The frontend hot-reloads automatically on code changes
+- Backend auto-reloads when using `--reload` flag with uvicorn

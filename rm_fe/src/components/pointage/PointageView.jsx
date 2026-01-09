@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { api } from '../../lib/api';
 import { LCSidebar } from './LCSidebar';
 import { WeeklyCalendar } from './WeeklyCalendar';
-import { getWeekStartDate, formatDate, getWeekDays, formatWeekRange } from '../../utils/dateUtils';
+import { getWeekStartDate, formatDate, getWeekDays, formatWeekRange, normalizeDateString } from '../../utils/dateUtils';
 
 const initialFormData = {
   clef_imputation: '',
@@ -49,24 +49,12 @@ export function PointageView() {
     try {
       setLoading(true);
       const weekStartStr = formatDate(currentWeekStart);
-      console.log('📅 Loading entries for week:', weekStartStr);
       const data = await api.getPointageEntriesForWeek(weekStartStr);
-      console.log('📦 API Response:', data);
       
-      // Normalize date_pointage to ensure consistent format (YYYY-MM-DD)
-      const normalizeDate = (dateStr) => {
-        if (!dateStr) return null;
-        // If it's already in YYYY-MM-DD format, return as is
-        // If it has time component, extract just the date part
-        return dateStr.split('T')[0];
-      };
-      
-      // Map entries to match the expected format
       const rawEntries = data.entries || data || [];
-      console.log('📋 Raw entries from API:', rawEntries);
       const formattedEntries = rawEntries.map(entry => ({
         id: entry.id,
-        date_pointage: normalizeDate(entry.date_pointage),
+        date_pointage: normalizeDateString(entry.date_pointage),
         clef_imputation: entry.clef_imputation || '',
         libelle: entry.libelle || '',
         fonction: entry.fonction || '',
@@ -80,8 +68,6 @@ export function PointageView() {
         updated_at: entry.updated_at,
       }));
       
-      console.log('✅ Formatted entries:', formattedEntries);
-      console.log('📊 Entries count:', formattedEntries.length);
       setEntries(formattedEntries);
       return formattedEntries; // Return entries so we can use them immediately
     } catch (error) {
@@ -94,25 +80,11 @@ export function PointageView() {
   };
 
   const loadEntryForDay = (dayOfWeek, entriesToSearch = null) => {
-    // Find entry for the selected day
     const dayDate = weekDays[dayOfWeek - 1];
     const dayDateStr = formatDate(dayDate);
-    
-    // Normalize date strings for comparison (remove time if present)
-    const normalizeDate = (dateStr) => {
-      if (!dateStr) return null;
-      return dateStr.split('T')[0]; // Get just the date part
-    };
-    
-    // Use provided entries or current state
     const entriesList = entriesToSearch || entries;
     
-    const entry = entriesList.find(e => {
-      const entryDate = normalizeDate(e.date_pointage);
-      return entryDate === dayDateStr;
-    });
-    
-    console.log('🔍 Looking for entry:', { dayDateStr, entriesCount: entriesList.length, found: !!entry });
+    const entry = entriesList.find(e => normalizeDateString(e.date_pointage) === dayDateStr);
     
     if (entry) {
       setCurrentEntry(entry);
@@ -150,8 +122,6 @@ export function PointageView() {
 
       let saveResult;
       if (currentEntry) {
-        // Update existing entry
-        console.log('💾 Updating entry:', currentEntry.id);
         saveResult = await api.updatePointageEntry(currentEntry.id, {
           clef_imputation: formData.clef_imputation,
           libelle: formData.libelle,
@@ -161,11 +131,8 @@ export function PointageView() {
           heures_passees: formData.heures_passees,
           commentaires: formData.commentaires,
         });
-        console.log('✅ Update result:', saveResult);
         showMessage('success', 'Entry updated successfully');
       } else {
-        // Create new entry
-        console.log('💾 Creating new entry for date:', dayDateStr);
         saveResult = await api.createPointageEntry({
           date_pointage: dayDateStr,
           clef_imputation: formData.clef_imputation,
@@ -176,21 +143,12 @@ export function PointageView() {
           heures_passees: formData.heures_passees,
           commentaires: formData.commentaires,
         });
-        console.log('✅ Create result:', saveResult);
         showMessage('success', 'Entry saved successfully');
       }
 
-      console.log('💾 Save completed, reloading entries...');
-      // Load entries and immediately reload the selected day's entry
       const loadedEntries = await loadEntriesForWeek();
-      console.log('💾 After save - loaded entries:', loadedEntries);
-      console.log('💾 Selected day:', selectedDay);
-      // Reload entry for the selected day using the freshly loaded entries
       if (selectedDay !== null) {
-        console.log('🔄 Reloading entry for day:', selectedDay);
         loadEntryForDay(selectedDay, loadedEntries);
-      } else {
-        console.log('⚠️ No selected day, cannot reload entry');
       }
     } catch (error) {
       console.error('Error saving entry:', error);

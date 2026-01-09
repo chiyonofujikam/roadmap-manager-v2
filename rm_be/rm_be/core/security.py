@@ -32,10 +32,8 @@ def get_keycloak_client() -> Optional[KeycloakOpenID]:
                 client_secret_key=settings.keycloak_client_secret,
                 verify=settings.keycloak_verify_ssl
             )
-        except Exception as e:
-            if settings.debug:
-                print(f"Warning: Could not initialize Keycloak client: {e}")
-                print("Falling back to mock authentication")
+
+        except Exception:
             return None
 
     return _keycloak_openid
@@ -102,12 +100,14 @@ async def verify_token_keycloak(token: str) -> Dict:
             detail=f"Invalid token: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"}
         )
+
     except KeycloakError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Keycloak error: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"}
         )
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -126,18 +126,15 @@ async def verify_token_mock(token: str) -> Dict:
             detail=f"Mock authentication not configured: {str(e)}"
         )
 
-    # In mock mode, token is just the user email or username
     users_dict = mock_users.get("users", {})
     user = users_dict.get(token)
     if not user:
-        # Try finding by email or username
         for user_data in users_dict.values():
             if user_data.get("email") == token or user_data.get("username") == token:
                 user = user_data
                 break
 
     if not user:
-        # List available users for debugging
         available_users = [u.get("email", u.get("username", "unknown")) for u in users_dict.values()]
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -145,7 +142,6 @@ async def verify_token_mock(token: str) -> Dict:
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    # Return mock user data in JWT-like format
     return {
         "sub": user.get("id", token),
         "email": user.get("email", token),
@@ -193,9 +189,7 @@ def require_role(required_role: str):
         user_roles = current_user.get("roles", [])
         user_type = current_user.get("user_type", "")
 
-        # Check if user has the required role or user_type matches
         if required_role not in user_roles and user_type != required_role:
-            # Also check if user_type is admin (admins have all permissions)
             if user_type != "admin":
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -212,7 +206,6 @@ def require_user_type(required_user_type: str):
     async def user_type_checker(current_user: Dict = Depends(get_current_user)):
         user_type = current_user.get("user_type", "")
 
-        # Admin has access to everything
         if user_type == "admin":
             return current_user
 
@@ -238,7 +231,6 @@ async def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] 
             token_data = await verify_token_mock(token)
         else:
             token_data = await verify_token_keycloak(token)
-
         return {
             "user_id": token_data.get("sub") or token_data.get("user_id"),
             "email": token_data.get("email"),
@@ -247,5 +239,6 @@ async def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] 
             "roles": token_data.get("realm_access", {}).get("roles", []),
             "user_type": token_data.get("user_type", "collaborator"),
         }
+
     except HTTPException:
         return None

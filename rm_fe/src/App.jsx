@@ -23,12 +23,10 @@ function AppContent() {
     return <LoginForm />;
   }
 
-  // Show admin/responsible view if user is admin or responsible
   if (isAdminOrResponsible(user)) {
     return <AdminResponsibleView />;
   }
 
-  // Show collaborator view (pointage view)
   return (
     <RoleBasedLayout>
       <PointageView />

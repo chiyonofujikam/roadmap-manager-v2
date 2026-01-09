@@ -1,31 +1,23 @@
-import { getDayName, formatDate } from '../../utils/dateUtils';
+import { getDayName, formatDate, normalizeDateString } from '../../utils/dateUtils';
 import { Check, Lock, Edit2 } from 'lucide-react';
 
+/**
+ * Weekly calendar component displaying pointage entries for each day of the week.
+ * 
+ * @param {Array} weekDays - Array of Date objects for the week (Monday-Sunday)
+ * @param {Array} entries - Array of pointage entry objects
+ * @param {number} selectedDay - Selected day of week (1-7)
+ * @param {Function} onSelectDay - Callback when a day is selected
+ */
 export function WeeklyCalendar({ weekDays, entries, selectedDay, onSelectDay }) {
   const getEntriesForDay = (dayOfWeek) => {
-    // dayOfWeek is 1-7 (Monday-Sunday), get the corresponding date
     const dayDate = weekDays[dayOfWeek - 1];
     const dayDateStr = formatDate(dayDate);
     
-    // Normalize date strings for comparison (remove time if present)
-    const normalizeDate = (dateStr) => {
-      if (!dateStr) return null;
-      return dateStr.split('T')[0]; // Get just the date part
-    };
-    
     const dayEntries = entries.filter(entry => {
-      const entryDate = normalizeDate(entry.date_pointage);
-      const matches = entryDate === dayDateStr;
-      if (matches) {
-        console.log('✅ Found entry for day:', dayDateStr, entry);
-      }
-      return matches;
+      const entryDate = normalizeDateString(entry.date_pointage);
+      return entryDate === dayDateStr;
     });
-    
-    if (dayEntries.length === 0 && entries.length > 0) {
-      console.log('⚠️ No entry found for', dayDateStr, 'but have', entries.length, 'entries');
-      console.log('📅 Entry dates:', entries.map(e => normalizeDate(e.date_pointage)));
-    }
     
     return dayEntries;
   };

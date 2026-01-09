@@ -93,7 +93,7 @@ REM Start frontend in new window
 start "Frontend Server" cmd /k "cd rm_fe && npm run dev"
 
 echo.
-echo ✓ Services started in separate windows
+echo Services started in separate windows
 echo.
 echo Backend: http://localhost:8000
 echo Frontend: http://localhost:5173

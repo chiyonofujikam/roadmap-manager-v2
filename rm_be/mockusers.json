@@ -18,11 +18,20 @@
       "roles": ["responsible"],
       "password": "responsible123"
     },
+    "responsible2@example.com": {
+      "id": "responsible-002",
+      "username": "responsible2",
+      "email": "responsible2@example.com",
+      "name": "Responsible 2",
+      "user_type": "responsible",
+      "roles": ["responsible"],
+      "password": "responsible123"
+    },
     "collaborator1@example.com": {
       "id": "collab-001",
       "username": "collaborator1",
       "email": "collaborator1@example.com",
-      "name": "Collaborator One",
+      "name": "Imane Nazih",
       "user_type": "collaborator",
       "roles": ["collaborator"],
       "password": "collab123",
@@ -32,7 +41,7 @@
       "id": "collab-002",
       "username": "collaborator2",
       "email": "collaborator2@example.com",
-      "name": "Collaborator Two",
+      "name": "Oumaima Yahya",
       "user_type": "collaborator",
       "roles": ["collaborator"],
       "password": "collab123",
@@ -42,11 +51,11 @@
       "id": "collab-003",
       "username": "collaborator3",
       "email": "collaborator3@example.com",
-      "name": "Collaborator Three",
+      "name": "Karim Gani",
       "user_type": "collaborator",
       "roles": ["collaborator"],
       "password": "collab123",
-      "responsible_id": "responsible-001"
+      "responsible_id": "responsible-002"
     }
   },
   "notes": {

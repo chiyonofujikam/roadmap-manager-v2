@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 from rm_be.api.deps import (CurrentUser, RequireAdminOrResponsible,
                             RequireCollaborator)
 from rm_be.api.schemas import PointageEntryCreate, PointageEntryUpdate
+from rm_be.api.utils import get_db_user_from_current, serialize_date
 from rm_be.database import (ConditionalListRepository, PointageEntry,
                             PointageEntryData, PointageEntryRepository,
                             UserRepository)
@@ -70,7 +71,7 @@ async def get_default_lc_items(current_user: dict = CurrentUser):
             "libelle": format_options(libelle_set),
             "fonction": format_options(fonction_set)
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -81,54 +82,40 @@ async def get_default_lc_items(current_user: dict = CurrentUser):
 async def get_team_pointage_entries(current_user: dict = RequireAdminOrResponsible(), skip: int = 0, limit: int = 1000):
     """
     Get all pointage entries for a responsible's team.
-    - For responsible users: Returns entries for their team members only
-    - For admin users: Returns entries for all users
+
+    For responsible users: Returns entries for their team members only.
+    For admin users: Returns entries for all users.
     Returns entries with user information included for table display.
+
+    Args:
+        current_user: Authenticated user (admin or responsible)
+        skip: Number of entries to skip for pagination
+        limit: Maximum number of entries to return
+
+    Returns:
+        Dictionary with entries, total count, skip, and limit
     """
     try:
         user_repo = UserRepository()
         pointage_repo = PointageEntryRepository()
-        db_user = None
-        if current_user.get("email"):
-            db_user = await user_repo.find_by_email(current_user["email"])
-
-        elif current_user.get("user_id"):
-            try:
-                if ObjectId.is_valid(current_user["user_id"]):
-                    db_user = await user_repo.find_by_id(ObjectId(current_user["user_id"]))
-            except:
-                pass
-
-        if not db_user and current_user.get("name"):
-            db_user = await user_repo.find_by_name(current_user["name"])
-
-        if not db_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found in database"
-            )
+        db_user = await get_db_user_from_current(current_user, user_repo)
 
         user_type = db_user.get("user_type", current_user.get("user_type", ""))
         responsible_id = db_user.get("_id")
-        print(f"👤 User type: {user_type}, Responsible ID: {responsible_id}")
 
         if user_type == "admin":
-            print("🔍 Admin: Fetching all entries")
             entries = await pointage_repo.find_many(
-                {"is_deleted": False},
+                {"is_deleted": {"$ne": True}},
                 skip=skip,
                 limit=limit,
                 sort=[("entry_data.date_pointage", -1), ("created_at", -1)]
             )
         else:
-            print(f"🔍 Responsible: Fetching team entries for responsible {responsible_id}")
             entries = await pointage_repo.find_by_team(
                 responsible_id,
                 skip=skip,
                 limit=limit
             )
-
-        print(f"✅ Found {len(entries)} entries")
         user_ids = list(set([entry.get("user_id") for entry in entries if entry.get("user_id")]))
         users_dict = {}
 
@@ -150,8 +137,7 @@ async def get_team_pointage_entries(current_user: dict = RequireAdminOrResponsib
                         "email": user_obj.get("email", ""),
                     }
 
-            except Exception as e:
-                print(f"Error fetching user {user_id}: {e}")
+            except Exception:
                 continue
 
         formatted_entries = []
@@ -159,29 +145,9 @@ async def get_team_pointage_entries(current_user: dict = RequireAdminOrResponsib
             user_id = str(entry.get("user_id", ""))
             user_info = users_dict.get(user_id, {"name": "Unknown", "email": ""})
             entry_data = entry.get("entry_data", {})
-            date_pointage = entry_data.get("date_pointage")
-            date_besoin = entry_data.get("date_besoin")
+            date_pointage_str = serialize_date(entry_data.get("date_pointage"))
+            date_besoin_str = serialize_date(entry_data.get("date_besoin"))
 
-            if date_pointage:
-                if isinstance(date_pointage, datetime):
-                    date_pointage_str = date_pointage.date().isoformat()
-                elif isinstance(date_pointage, date):
-                    date_pointage_str = date_pointage.isoformat()
-                else:
-                    date_pointage_str = str(date_pointage)
-            else:
-                date_pointage_str = None
-                
-            if date_besoin:
-                if isinstance(date_besoin, datetime):
-                    date_besoin_str = date_besoin.date().isoformat()
-                elif isinstance(date_besoin, date):
-                    date_besoin_str = date_besoin.isoformat()
-                else:
-                    date_besoin_str = str(date_besoin)
-            else:
-                date_besoin_str = None
-            
             formatted_entries.append({
                 "id": str(entry.get("_id", "")),
                 "user_id": user_id,
@@ -220,30 +186,18 @@ async def get_team_pointage_entries(current_user: dict = RequireAdminOrResponsib
 async def get_pointage_entries_for_week(week_start: str, current_user: dict = RequireCollaborator):
     """
     Get all pointage entries for a specific week for the current collaborator.
-    week_start should be in YYYY-MM-DD format (Monday of the week).
+
+    Args:
+        week_start: Start date of the week in YYYY-MM-DD format (Monday of the week)
+        current_user: Authenticated collaborator user
+
+    Returns:
+        Dictionary with entries list and week_start date
     """
     try:
         user_repo = UserRepository()
         pointage_repo = PointageEntryRepository()
-        db_user = None
-        if current_user.get("email"):
-            db_user = await user_repo.find_by_email(current_user["email"])
-        elif current_user.get("user_id"):
-            try:
-                if ObjectId.is_valid(current_user["user_id"]):
-                    db_user = await user_repo.find_by_id(ObjectId(current_user["user_id"]))
-            except:
-                pass
-
-        if not db_user and current_user.get("name"):
-            db_user = await user_repo.find_by_name(current_user["name"])
-
-        if not db_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found in database"
-            )
-
+        db_user = await get_db_user_from_current(current_user, user_repo)
         user_id = db_user.get("_id")
         try:
             week_start_date = datetime.strptime(week_start, "%Y-%m-%d").date()
@@ -252,60 +206,25 @@ async def get_pointage_entries_for_week(week_start: str, current_user: dict = Re
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid date format. Use YYYY-MM-DD"
             )
-
-        week_end_date = week_start_date + timedelta(days=6)
-        week_start_datetime = datetime.combine(week_start_date, datetime.min.time())
-        week_end_datetime = datetime.combine(week_end_date, datetime.max.time())
+        cstr_semaine = week_start_date.strftime("%Y-W%V")
+        user_id_str = str(user_id) if isinstance(user_id, ObjectId) else user_id
         query = {
-            "user_id": user_id,
-            "is_deleted": False,
-            "entry_data.date_pointage": {
-                "$gte": week_start_datetime,
-                "$lte": week_end_datetime
-            }
+            "user_id": {"$in": [user_id, user_id_str]},
+            "entry_data.cstr_semaine": cstr_semaine,
+            "is_deleted": {"$ne": True},
         }
-        print(f"🔍 Querying entries for week: {week_start} to {week_end_date}")
-        print(f"🔍 Query datetime range: {week_start_datetime} to {week_end_datetime}")
-        print(f"🔍 User ID: {user_id}")
-        print(f"🔍 Query: {query}")
         entries = await pointage_repo.find_many(query, sort=[("entry_data.date_pointage", 1)])
-        print(f"✅ Found {len(entries)} entries")
-        for entry in entries:
-            entry_data = entry.get("entry_data", {})
-            print(f"  - Entry date: {entry_data.get('date_pointage')}, Status: {entry.get('status')}")
 
         formatted_entries = []
         for entry in entries:
             entry_data = entry.get("entry_data", {})
-            date_pointage = entry_data.get("date_pointage")
-            date_besoin = entry_data.get("date_besoin")
-            if date_pointage:
-                if isinstance(date_pointage, datetime):
-                    date_pointage_str = date_pointage.date().isoformat()
-                elif isinstance(date_pointage, date):
-                    date_pointage_str = date_pointage.isoformat()
-                else:
-                    date_pointage_str = str(date_pointage)
-            else:
-                date_pointage_str = None
-                
-            if date_besoin:
-                if isinstance(date_besoin, datetime):
-                    date_besoin_str = date_besoin.date().isoformat()
-                elif isinstance(date_besoin, date):
-                    date_besoin_str = date_besoin.isoformat()
-                else:
-                    date_besoin_str = str(date_besoin)
-            else:
-                date_besoin_str = None
-            
             formatted_entries.append({
                 "id": str(entry.get("_id", "")),
-                "date_pointage": date_pointage_str,
+                "date_pointage": serialize_date(entry_data.get("date_pointage")),
                 "clef_imputation": entry_data.get("clef_imputation", ""),
                 "libelle": entry_data.get("libelle", ""),
                 "fonction": entry_data.get("fonction", ""),
-                "date_besoin": date_besoin_str,
+                "date_besoin": serialize_date(entry_data.get("date_besoin")),
                 "heures_theoriques": entry_data.get("heures_theoriques", ""),
                 "heures_passees": entry_data.get("heures_passees", ""),
                 "commentaires": entry_data.get("commentaires", ""),
@@ -314,7 +233,7 @@ async def get_pointage_entries_for_week(week_start: str, current_user: dict = Re
                 "created_at": entry.get("created_at"),
                 "updated_at": entry.get("updated_at"),
             })
-        
+
         return {"entries": formatted_entries, "week_start": week_start}
 
     except Exception as e:
@@ -325,29 +244,20 @@ async def get_pointage_entries_for_week(week_start: str, current_user: dict = Re
 
 @router.post("/pointage/entries")
 async def create_pointage_entry(entry_data: PointageEntryCreate, current_user: dict = RequireCollaborator):
-    """Create a new pointage entry for the current collaborator"""
+    """
+    Create a new pointage entry for the current collaborator.
+
+    Args:
+        entry_data: Pointage entry data (date_pointage, LC fields, hours, etc.)
+        current_user: Authenticated collaborator user
+
+    Returns:
+        Dictionary with created entry ID, message, and status
+    """
     try:
         user_repo = UserRepository()
         pointage_repo = PointageEntryRepository()
-        db_user = None
-        if current_user.get("email"):
-            db_user = await user_repo.find_by_email(current_user["email"])
-        elif current_user.get("user_id"):
-            try:
-                if ObjectId.is_valid(current_user["user_id"]):
-                    db_user = await user_repo.find_by_id(ObjectId(current_user["user_id"]))
-            except:
-                pass
-        
-        if not db_user and current_user.get("name"):
-            db_user = await user_repo.find_by_name(current_user["name"])
-        
-        if not db_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found in database"
-            )
-
+        db_user = await get_db_user_from_current(current_user, user_repo)
         user_id = db_user.get("_id")
         try:
             date_pointage_obj = datetime.strptime(entry_data.date_pointage, "%Y-%m-%d").date()
@@ -381,10 +291,6 @@ async def create_pointage_entry(entry_data: PointageEntryCreate, current_user: d
         )
 
         entry_id = await pointage_repo.create(pointage_entry)
-        print(f"✅ Created pointage entry: {entry_id}")
-        print(f"  - User ID: {user_id}")
-        print(f"  - Date: {date_pointage_obj}")
-        print(f"  - Status: draft")
 
         return {
             "id": str(entry_id),
@@ -400,29 +306,21 @@ async def create_pointage_entry(entry_data: PointageEntryCreate, current_user: d
 
 @router.put("/pointage/entries/{entry_id}")
 async def update_pointage_entry(entry_id: str, entry_data: PointageEntryUpdate, current_user: dict = RequireCollaborator):
-    """Update an existing pointage entry (only if status is draft)"""
+    """
+    Update an existing pointage entry (only if status is draft).
+
+    Args:
+        entry_id: ID of the pointage entry to update
+        entry_data: Updated pointage entry data
+        current_user: Authenticated collaborator user
+
+    Returns:
+        Dictionary with entry ID, message, and updated status
+    """
     try:
         user_repo = UserRepository()
         pointage_repo = PointageEntryRepository()
-        db_user = None
-        if current_user.get("email"):
-            db_user = await user_repo.find_by_email(current_user["email"])
-        elif current_user.get("user_id"):
-            try:
-                if ObjectId.is_valid(current_user["user_id"]):
-                    db_user = await user_repo.find_by_id(ObjectId(current_user["user_id"]))
-            except:
-                pass
-
-        if not db_user and current_user.get("name"):
-            db_user = await user_repo.find_by_name(current_user["name"])
-
-        if not db_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found in database"
-            )
-
+        db_user = await get_db_user_from_current(current_user, user_repo)
         user_id = db_user.get("_id")
         if not ObjectId.is_valid(entry_id):
             raise HTTPException(
@@ -514,29 +412,20 @@ async def update_pointage_entry(entry_id: str, entry_data: PointageEntryUpdate, 
 
 @router.post("/pointage/entries/{entry_id}/submit")
 async def submit_pointage_entry(entry_id: str, current_user: dict = RequireCollaborator):
-    """Submit a pointage entry (locks it for validation)"""
+    """
+    Submit a pointage entry (locks it for validation).
+
+    Args:
+        entry_id: ID of the pointage entry to submit
+        current_user: Authenticated collaborator user
+
+    Returns:
+        Dictionary with entry ID, message, and submitted status
+    """
     try:
         user_repo = UserRepository()
         pointage_repo = PointageEntryRepository()
-        db_user = None
-        if current_user.get("email"):
-            db_user = await user_repo.find_by_email(current_user["email"])
-        elif current_user.get("user_id"):
-            try:
-                if ObjectId.is_valid(current_user["user_id"]):
-                    db_user = await user_repo.find_by_id(ObjectId(current_user["user_id"]))
-            except:
-                pass
-        
-        if not db_user and current_user.get("name"):
-            db_user = await user_repo.find_by_name(current_user["name"])
-        
-        if not db_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found in database"
-            )
-        
+        db_user = await get_db_user_from_current(current_user, user_repo)
         user_id = db_user.get("_id")
         if not ObjectId.is_valid(entry_id):
             raise HTTPException(

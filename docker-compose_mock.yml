@@ -1,0 +1,88 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: roadmap_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=roadmap_db_dev
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - roadmap_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  backend:
+    build:
+      context: ./rm_be
+      dockerfile: Dockerfile
+    container_name: roadmap_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/roadmap_db_dev
+      - MONGODB_DB_NAME=roadmap_db_dev
+      - USE_MOCK_AUTH=true
+      - DEBUG=true
+      - HOST=0.0.0.0
+      - PORT=8000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - roadmap_network
+    volumes:
+      - ./rm_be/mockusers.json:/app/mockusers.json:ro
+      - ./rm_be/rm_be:/app/rm_be
+    command: >
+      sh -c "
+        sleep 5 &&
+        uv run python -m rm_be.database.init_db &&
+        uv run python -m rm_be.scripts.seed_users &&
+        uv run python -m rm_be.scripts.seed_lc_data &&
+        uv run uvicorn rm_be.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  frontend:
+    build:
+      context: ./rm_fe
+      dockerfile: Dockerfile
+    container_name: roadmap_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+      - NODE_ENV=development
+    depends_on:
+      - backend
+    networks:
+      - roadmap_network
+    volumes:
+      - ./rm_fe/src:/app/src
+      - ./rm_fe/public:/app/public
+      - ./rm_fe/index.html:/app/index.html
+      - ./rm_fe/vite.config.js:/app/vite.config.js
+      - ./rm_fe/tailwind.config.js:/app/tailwind.config.js
+      - ./rm_fe/postcss.config.js:/app/postcss.config.js
+      - ./rm_fe/package.json:/app/package.json
+      - ./rm_fe/package-lock.json:/app/package-lock.json
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
+networks:
+  roadmap_network:
+    driver: bridge

@@ -3,11 +3,12 @@
 from .connection import close_database, get_database, init_database
 from .indexes import create_indexes
 from .models import (AuditLog, BackgroundJob, ConditionalList,
-                     ConditionalListItem, PointageEntry, PointageEntryData,
-                     User, UserMetadata)
+                     ConditionalListItem, ModificationRequest, PointageEntry,
+                     PointageEntryData, User, UserMetadata)
 from .repositories import (AuditLogRepository, BackgroundJobRepository,
-                           ConditionalListRepository, PointageEntryRepository,
-                           UserRepository)
+                           ConditionalListRepository,
+                           ModificationRequestRepository,
+                           PointageEntryRepository, UserRepository)
 
 __all__ = [
     "get_database",
@@ -18,12 +19,14 @@ __all__ = [
     "UserMetadata",
     "ConditionalList",
     "ConditionalListItem",
+    "ModificationRequest",
     "PointageEntry",
     "PointageEntryData",
     "AuditLog",
     "BackgroundJob",
     "UserRepository",
     "ConditionalListRepository",
+    "ModificationRequestRepository",
     "PointageEntryRepository",
     "AuditLogRepository",
     "BackgroundJobRepository",

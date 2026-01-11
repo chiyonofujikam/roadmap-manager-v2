@@ -7,9 +7,11 @@ import { Check, Lock, Edit2 } from 'lucide-react';
  * @param {Array} weekDays - Array of Date objects for the week (Monday-Sunday)
  * @param {Array} entries - Array of pointage entry objects
  * @param {number} selectedDay - Selected day of week (1-7)
+ * @param {string} selectedEntryId - ID of the selected entry
  * @param {Function} onSelectDay - Callback when a day is selected
+ * @param {Function} onSelectEntry - Callback when an entry is selected
  */
-export function WeeklyCalendar({ weekDays, entries, selectedDay, onSelectDay }) {
+export function WeeklyCalendar({ weekDays, entries, selectedDay, selectedEntryId, onSelectDay, onSelectEntry }) {
   const getEntriesForDay = (dayOfWeek) => {
     const dayDate = weekDays[dayOfWeek - 1];
     const dayDateStr = formatDate(dayDate);
@@ -51,7 +53,7 @@ export function WeeklyCalendar({ weekDays, entries, selectedDay, onSelectDay }) 
   };
 
   return (
-    <div className="grid grid-cols-7 gap-4 p-6">
+    <div className="grid grid-cols-7 gap-3 p-3">
       {weekDays.map((day, index) => {
         const dayOfWeek = index + 1;
         const dayEntries = getEntriesForDay(dayOfWeek);
@@ -59,8 +61,8 @@ export function WeeklyCalendar({ weekDays, entries, selectedDay, onSelectDay }) 
 
         return (
           <div key={dayOfWeek} className="flex flex-col">
-            <div className="text-center mb-3">
-              <div className="text-sm font-semibold text-slate-900">
+            <div className="text-center mb-2">
+              <div className="text-xs font-semibold text-slate-900">
                 {getDayName(dayOfWeek)}
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
@@ -70,36 +72,50 @@ export function WeeklyCalendar({ weekDays, entries, selectedDay, onSelectDay }) 
 
             <button
               onClick={() => onSelectDay(dayOfWeek)}
-              className={`flex-1 min-h-[120px] p-3 border-2 rounded-lg transition-all ${
+              className={`flex-1 min-h-[80px] max-h-[120px] p-2 border-2 rounded-lg transition-all overflow-hidden flex flex-col ${
                 isSelected
                   ? 'border-blue-500 bg-blue-50 shadow-md'
                   : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
               }`}
             >
               {dayEntries.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                <div className="h-full flex items-center justify-center text-slate-400 text-xs">
                   No entries
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {dayEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className={`p-2 border rounded text-left text-xs ${getStatusColor(entry.status)}`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-slate-700 capitalize">
-                          {entry.status}
-                        </span>
-                        {getStatusIcon(entry.status)}
-                      </div>
-                      {(entry.date_besoin || entry.column_h) && (
-                        <div className="text-slate-600 truncate" title={entry.date_besoin || entry.column_h}>
-                          {entry.date_besoin || entry.column_h}
+                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                  {dayEntries.map((entry) => {
+                    const isEntrySelected = selectedEntryId === entry.id;
+                    return (
+                      <div
+                        key={entry.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectEntry(entry.id);
+                          onSelectDay(dayOfWeek);
+                        }}
+                        className={`p-1.5 border rounded text-left text-xs cursor-pointer transition-all ${
+                          getStatusColor(entry.status)
+                        } ${
+                          isEntrySelected 
+                            ? 'ring-2 ring-blue-500 bg-blue-100 border-blue-400' 
+                            : 'hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-medium text-slate-700 capitalize">
+                            {entry.status}
+                          </span>
+                          {getStatusIcon(entry.status)}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {(entry.date_besoin || entry.column_h) && (
+                          <div className="text-slate-600 truncate text-xs" title={entry.date_besoin || entry.column_h}>
+                            {entry.date_besoin || entry.column_h}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </button>

@@ -1,10 +1,12 @@
 import { useAuth } from '../../hooks/useAuth';
+import { useNotification } from '../../contexts/NotificationContext';
 import { LogOut } from 'lucide-react';
 
 const IS_MOCK_MODE = true;
 
 export function CELayout({ children }) {
   const { user, signOut } = useAuth();
+  const { message } = useNotification();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -13,14 +15,24 @@ export function CELayout({ children }) {
           <div className="flex items-center gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Roadmap Manager</h1>
-              <p className="text-sm text-slate-600 mt-0.5">POINTAGE - Weekly Time Entry</p>
             </div>
-            {IS_MOCK_MODE && (
-              <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full border border-amber-300">
-                🧪 DEMO MODE
-              </span>
-            )}
+            <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full border border-amber-300">
+              DEMO MODE
+            </span>
           </div>
+          {message && (
+            <div className="flex-1 mx-6">
+              <div
+                className={`px-4 py-2 rounded-lg text-sm ${
+                  message.type === 'success'
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}
+              >
+                {message.text}
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-slate-900">{user?.name || user?.email}</p>

@@ -7,8 +7,8 @@ from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 
 from .connection import get_database
-from .models import (AuditLog, BackgroundJob, ConditionalList, PointageEntry,
-                     User)
+from .models import (AuditLog, BackgroundJob, ConditionalList,
+                     ModificationRequest, PointageEntry, User)
 
 
 class BaseRepository:
@@ -525,6 +525,73 @@ class PointageEntryRepository(BaseRepository):
             },
             skip=skip,
             limit=limit,
+        )
+
+
+class ModificationRequestRepository(BaseRepository):
+    """
+    Repository for modification_requests collection
+    """
+    def __init__(self):
+        super().__init__("modification_requests")
+
+    async def create(self, modification_request: ModificationRequest) -> ObjectId:
+        """Create a new modification request"""
+        doc = modification_request.model_dump(by_alias=True, exclude={"id"})
+        doc["_id"] = ObjectId()
+        doc["created_at"] = datetime.utcnow()
+
+        if "entry_id" in doc:
+            if isinstance(doc["entry_id"], str) and ObjectId.is_valid(doc["entry_id"]):
+                doc["entry_id"] = ObjectId(doc["entry_id"])
+        if "user_id" in doc:
+            if isinstance(doc["user_id"], str) and ObjectId.is_valid(doc["user_id"]):
+                doc["user_id"] = ObjectId(doc["user_id"])
+
+        result = await self.collection.insert_one(doc)
+        return result.inserted_id
+
+    async def find_by_team(self, responsible_id: ObjectId, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        """Find modification requests for a responsible's team members"""
+        user_repo = UserRepository()
+        team_members = await user_repo.find_by_responsible(responsible_id)
+        team_user_ids = [member["_id"] for member in team_members]
+        if not team_user_ids:
+            return []
+
+        team_user_ids_with_strings = []
+        for uid in team_user_ids:
+            team_user_ids_with_strings.append(uid)
+            if isinstance(uid, ObjectId):
+                team_user_ids_with_strings.append(str(uid))
+            elif isinstance(uid, str) and ObjectId.is_valid(uid):
+                team_user_ids_with_strings.append(ObjectId(uid))
+
+        query = {
+            "user_id": {"$in": team_user_ids_with_strings},
+            "is_deleted": {"$ne": True},
+        }
+
+        return await self.find_many(
+            query,
+            skip=skip,
+            limit=limit,
+            sort=[("created_at", -1)],
+        )
+
+    async def find_by_user(self, user_id: ObjectId, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        """Find modification requests for a specific user"""
+        user_id_str = str(user_id) if isinstance(user_id, ObjectId) else user_id
+        query = {
+            "user_id": {"$in": [user_id, user_id_str]},
+            "is_deleted": {"$ne": True},
+        }
+
+        return await self.find_many(
+            query,
+            skip=skip,
+            limit=limit,
+            sort=[("created_at", -1)],
         )
 
 

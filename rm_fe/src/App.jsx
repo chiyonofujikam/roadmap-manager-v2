@@ -1,4 +1,5 @@
 import { AuthProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { useAuth, isAdminOrResponsible } from './hooks/useAuth';
 import { LoginForm } from './components/auth/LoginForm';
 import { RoleBasedLayout } from './components/layouts/RoleBasedLayout';
@@ -37,7 +38,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

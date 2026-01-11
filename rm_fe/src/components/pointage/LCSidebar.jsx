@@ -65,6 +65,7 @@ export function LCSidebar({ formData, onChange, disabled }) {
           options={clefImputationOptions}
           disabled={disabled || loading}
           placeholder={loading ? "Loading..." : "Select clef d'imputation..."}
+          required
         />
 
         <AutocompleteInput
@@ -74,6 +75,7 @@ export function LCSidebar({ formData, onChange, disabled }) {
           options={libelleOptions}
           disabled={disabled || loading}
           placeholder={loading ? "Loading..." : "Select libellé..."}
+          required
         />
 
         <AutocompleteInput
@@ -83,11 +85,12 @@ export function LCSidebar({ formData, onChange, disabled }) {
           options={fonctionOptions}
           disabled={disabled || loading}
           placeholder={loading ? "Loading..." : "Select fonction..."}
+          required
         />
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Date du besoin
+            Date du besoin <span className="text-red-500">*</span>
           </label>
           <input
             type="date"
@@ -95,13 +98,14 @@ export function LCSidebar({ formData, onChange, disabled }) {
             onChange={(e) => updateField('date_besoin', e.target.value)}
             disabled={disabled}
             placeholder="Select date..."
+            required
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Nbre d'heures théoriques
+            Nbre d'heures théoriques <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -109,13 +113,14 @@ export function LCSidebar({ formData, onChange, disabled }) {
             onChange={(e) => updateField('heures_theoriques', e.target.value)}
             disabled={disabled}
             placeholder="Enter heures théoriques..."
+            required
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Heures passées
+            Heures passées <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -123,6 +128,7 @@ export function LCSidebar({ formData, onChange, disabled }) {
             onChange={(e) => updateField('heures_passees', e.target.value)}
             disabled={disabled}
             placeholder="Enter heures passées..."
+            required
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
           />
         </div>

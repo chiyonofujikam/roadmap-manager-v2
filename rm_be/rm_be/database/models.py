@@ -127,12 +127,12 @@ class PointageEntryData(BaseModel):
     """Pointage entry data - filled by collaborators from LC fields"""
     date_pointage: date = Field(..., description="Date of the pointage record - filled by user")
     cstr_semaine: Optional[str] = Field(None, description="Associated week of date_pointage - auto-calculated from date_pointage")
-    clef_imputation: Optional[str] = Field(None, description="Clef d'imputation - selected value from LC clef_imputation field")
-    libelle: Optional[str] = Field(None, description="Libellé - selected value from LC libelle field")
-    fonction: Optional[str] = Field(None, description="Fonction - selected value from LC fonction field")
-    date_besoin: Optional[date] = Field(None, description="Date du besoin - filled by user")
-    heures_theoriques: Optional[str] = Field(None, description="Nbre d'heures théoriques - filled by user")
-    heures_passees: Optional[str] = Field(None, description="Heures passées - filled by user")
+    clef_imputation: str = Field(..., description="Clef d'imputation - selected value from LC clef_imputation field")
+    libelle: str = Field(..., description="Libellé - selected value from LC libelle field")
+    fonction: str = Field(..., description="Fonction - selected value from LC fonction field")
+    date_besoin: date = Field(..., description="Date du besoin - filled by user")
+    heures_theoriques: str = Field(..., description="Nbre d'heures théoriques - filled by user")
+    heures_passees: str = Field(..., description="Heures passées - filled by user")
     commentaires: Optional[str] = Field(None, description="Commentaires - filled by user")
 
 class PointageEntry(BaseModel):
@@ -166,6 +166,30 @@ class PointageEntry(BaseModel):
     validated_by: Optional[str] = None
     is_deleted: bool = Field(default=False)
     is_archived: bool = Field(default=False)
+
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+    }
+
+class ModificationRequest(BaseModel):
+    """
+    Modification request document model
+
+    Allows collaborators to request modification of submitted entries.
+    Responsible users can approve or reject these requests.
+    """
+    id: Optional[PyObjectId] = Field(default=None, alias="_id")
+    entry_id: PyObjectId = Field(..., description="ID of the pointage entry to modify")
+    user_id: PyObjectId = Field(..., description="Collaborator who requested the modification")
+    requested_data: Dict[str, Any] = Field(..., description="The new data requested for the entry (PointageEntryUpdate fields)")
+    comment: Optional[str] = Field(None, description="Optional comment explaining the modification request")
+    status: str = Field(default="pending", pattern="^(pending|approved|rejected)$")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    reviewed_at: Optional[datetime] = None
+    reviewed_by: Optional[str] = None
+    review_comment: Optional[str] = None
+    is_deleted: bool = Field(default=False)
 
     model_config = {
         "populate_by_name": True,

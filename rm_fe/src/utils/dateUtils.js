@@ -36,3 +36,18 @@ export function formatWeekRange(weekStart) {
   const options = { month: 'short', day: 'numeric' };
   return `${weekStart.toLocaleDateString('en-US', options)} - ${weekEnd.toLocaleDateString('en-US', options)}, ${weekEnd.getFullYear()}`;
 }
+
+export function getWeekCstr(weekStart) {
+  const year = weekStart.getFullYear();
+  const yearLastTwoDigits = year.toString().slice(-2);
+  const date = new Date(weekStart);
+  date.setHours(0, 0, 0, 0);
+
+  const dayOfWeek = date.getDay() || 7;
+  date.setDate(date.getDate() + 4 - dayOfWeek);
+
+  const yearStart = new Date(date.getFullYear(), 0, 1);
+  const weekNumber = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  const weekNumberStr = weekNumber.toString().padStart(2, '0');
+  return `S${yearLastTwoDigits}${weekNumberStr}`;
+}

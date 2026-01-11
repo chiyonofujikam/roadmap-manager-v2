@@ -110,11 +110,24 @@ export const api = {
   },
 
   /**
+   * Get team members for responsible/admin users
+   * Returns all team members (collaborators) for the responsible's team (or all collaborators for admin)
+   */
+  async getTeamMembers() {
+    return apiRequest('/api/v1/users/team-members');
+  },
+
+  /**
    * Get team pointage entries for responsible/admin users
    * Returns all pointage entries for the responsible's team (or all entries for admin)
+   * weekStart is optional and should be in YYYY-MM-DD format (Monday of the week)
    */
-  async getTeamPointageEntries(skip = 0, limit = 1000) {
-    return apiRequest(`/api/v1/pointage/team-entries?skip=${skip}&limit=${limit}`);
+  async getTeamPointageEntries(skip = 0, limit = 1000, weekStart = null) {
+    let url = `/api/v1/pointage/team-entries?skip=${skip}&limit=${limit}`;
+    if (weekStart) {
+      url += `&week_start=${weekStart}`;
+    }
+    return apiRequest(url);
   },
 
   /**
@@ -152,6 +165,70 @@ export const api = {
     return apiRequest(`/api/v1/pointage/entries/${entryId}/submit`, {
       method: 'POST',
     });
+  },
+
+  /**
+   * Delete a pointage entry
+   */
+  async deletePointageEntry(entryId) {
+    return apiRequest(`/api/v1/pointage/entries/${entryId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Create a modification request for a submitted entry
+   */
+  async createModificationRequest(entryId, requestedData, comment = null) {
+    return apiRequest('/api/v1/pointage/modification-requests', {
+      method: 'POST',
+      body: JSON.stringify({
+        entry_id: entryId,
+        requested_data: requestedData,
+        comment: comment,
+      }),
+    });
+  },
+
+  /**
+   * Get modification requests (for responsible/admin)
+   */
+  async getModificationRequests(skip = 0, limit = 100) {
+    return apiRequest(`/api/v1/pointage/modification-requests?skip=${skip}&limit=${limit}`);
+  },
+
+  /**
+   * Review (approve/reject) a modification request
+   */
+  async reviewModificationRequest(requestId, status, reviewComment = null) {
+    return apiRequest(`/api/v1/pointage/modification-requests/${requestId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({
+        status: status,
+        review_comment: reviewComment,
+      }),
+    });
+  },
+
+  /**
+   * Get modification requests for the current collaborator
+   */
+  async getMyModificationRequests(skip = 0, limit = 100) {
+    return apiRequest(`/api/v1/pointage/modification-requests/my-requests?skip=${skip}&limit=${limit}`);
+  },
+
+  /**
+   * Check if an entry has a pending modification request
+   */
+  async checkPendingModificationRequest(entryId) {
+    try {
+      const data = await apiRequest(`/api/v1/pointage/modification-requests/my-requests?skip=0&limit=100`);
+      const requests = data.requests || [];
+      return requests.some(req => req.entry_id === entryId && req.status === 'pending');
+    } catch (err) {
+      console.error('Error checking pending request:', err);
+      return false;
+    }
   },
 };
 

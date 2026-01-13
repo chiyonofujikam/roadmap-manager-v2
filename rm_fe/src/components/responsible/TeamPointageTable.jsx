@@ -1,28 +1,170 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Download } from 'lucide-react';
 import { api } from '../../lib/api';
+import { convertCstrSemaineToSXXYY } from '../../utils/dateUtils';
+import { useNotification } from '../../contexts/NotificationContext';
+import * as XLSX from 'xlsx';
 
 export function TeamPointageTable() {
-  const [entries, setEntries] = useState([]);
+  const { showMessage } = useNotification();
+  const [allEntries, setAllEntries] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [updatingStatus, setUpdatingStatus] = useState(new Set());
+
+  // Filter states
+  const [filterUser, setFilterUser] = useState('');
+  const [filterCstrWeek, setFilterCstrWeek] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterClefImputation, setFilterClefImputation] = useState('');
+  const [filterLibelle, setFilterLibelle] = useState('');
+  const [filterFonction, setFilterFonction] = useState('');
+  const [filterDateBesoin, setFilterDateBesoin] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
 
   useEffect(() => {
     loadTeamEntries();
+    loadTeamMembers();
   }, []);
+
+  const loadTeamMembers = async () => {
+    try {
+      const data = await api.getTeamMembers();
+      setTeamMembers(data.members || []);
+    } catch (err) {
+      console.error('Error loading team members:', err);
+    }
+  };
 
   const loadTeamEntries = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const data = await api.getTeamPointageEntries();
-      setEntries(data.entries || []);
+      // Load all entries with a high limit to get all data for filters
+      const data = await api.getTeamPointageEntries(0, 10000);
+      setAllEntries(data.entries || []);
     } catch (err) {
       console.error('❌ Error loading team pointage entries:', err);
       setError(err.message || 'Failed to load team pointage entries');
-      setEntries([]);
+      setAllEntries([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Get unique CSTR week values in SXXYY format
+  const uniqueCstrWeeks = useMemo(() => {
+    const weeks = new Set();
+    allEntries.forEach(entry => {
+      if (entry.cstr_semaine) {
+        const sxxyy = convertCstrSemaineToSXXYY(entry.cstr_semaine);
+        if (sxxyy) {
+          weeks.add(sxxyy);
+        }
+      }
+    });
+    return Array.from(weeks).sort();
+  }, [allEntries]);
+
+  // Get unique values for other filter columns
+  const uniqueValues = useMemo(() => {
+    return {
+      clefImputation: [...new Set(allEntries.map(e => e.clef_imputation).filter(Boolean))].sort(),
+      libelle: [...new Set(allEntries.map(e => e.libelle).filter(Boolean))].sort(),
+      fonction: [...new Set(allEntries.map(e => e.fonction).filter(Boolean))].sort(),
+      status: [...new Set(allEntries.map(e => e.status).filter(Boolean))].sort(),
+    };
+  }, [allEntries]);
+
+  // Filter entries based on all filter criteria
+  const filteredEntries = useMemo(() => {
+    return allEntries.filter(entry => {
+      // Filter by user (name)
+      if (filterUser && entry.user_name !== filterUser) {
+        return false;
+      }
+
+      // Filter by CSTR week
+      if (filterCstrWeek) {
+        const entryCstr = convertCstrSemaineToSXXYY(entry.cstr_semaine);
+        if (entryCstr !== filterCstrWeek) {
+          return false;
+        }
+      }
+
+      // Filter by date
+      if (filterDate) {
+        const entryDate = formatDateString(entry.date_pointage);
+        if (!entryDate.includes(filterDate)) {
+          return false;
+        }
+      }
+
+      // Filter by clef_imputation
+      if (filterClefImputation && entry.clef_imputation !== filterClefImputation) {
+        return false;
+      }
+
+      // Filter by libelle
+      if (filterLibelle && entry.libelle !== filterLibelle) {
+        return false;
+      }
+
+      // Filter by fonction
+      if (filterFonction && entry.fonction !== filterFonction) {
+        return false;
+      }
+
+      // Filter by date_besoin
+      if (filterDateBesoin) {
+        const entryDateBesoin = formatDateString(entry.date_besoin);
+        if (!entryDateBesoin.includes(filterDateBesoin)) {
+          return false;
+        }
+      }
+
+      // Filter by status
+      if (filterStatus && entry.status !== filterStatus) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [
+    allEntries,
+    filterUser,
+    filterCstrWeek,
+    filterDate,
+    filterClefImputation,
+    filterLibelle,
+    filterFonction,
+    filterDateBesoin,
+    filterStatus,
+  ]);
+
+  const handleStatusChange = async (entryId, newStatus) => {
+    try {
+      setUpdatingStatus(prev => new Set(prev).add(entryId));
+      await api.updatePointageEntryStatus(entryId, newStatus);
+      showMessage('success', `Entry status updated to ${newStatus}`);
+      
+      // Update the entry in local state
+      setAllEntries(prev => prev.map(entry => 
+        entry.id === entryId 
+          ? { ...entry, status: newStatus }
+          : entry
+      ));
+    } catch (err) {
+      console.error('Error updating entry status:', err);
+      showMessage('error', err.message || 'Failed to update entry status');
+    } finally {
+      setUpdatingStatus(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(entryId);
+        return newSet;
+      });
     }
   };
 
@@ -57,6 +199,67 @@ export function TeamPointageTable() {
     }
   };
 
+  const handleExportToExcel = () => {
+    // Prepare data for Excel export
+    const excelData = filteredEntries.map(entry => ({
+      'User': entry.user_name,
+      'Date': formatDateString(entry.date_pointage),
+      'CSTR Week': convertCstrSemaineToSXXYY(entry.cstr_semaine) || '',
+      'Clef d\'imputation': entry.clef_imputation || '',
+      'Libellé': entry.libelle || '',
+      'Fonction': entry.fonction || '',
+      'Date besoin': formatDateString(entry.date_besoin) || '',
+      'H. théoriques': entry.heures_theoriques || '',
+      'H. passées': entry.heures_passees || '',
+      'Status': entry.status || '',
+      'Commentaires': entry.commentaires || '',
+    }));
+
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Team Pointage Entries');
+
+    // Set column widths
+    const colWidths = [
+      { wch: 20 }, // User
+      { wch: 12 }, // Date
+      { wch: 12 }, // CSTR Week
+      { wch: 20 }, // Clef d'imputation
+      { wch: 15 }, // Libellé
+      { wch: 12 }, // Fonction
+      { wch: 12 }, // Date besoin
+      { wch: 15 }, // H. théoriques
+      { wch: 15 }, // H. passées
+      { wch: 12 }, // Status
+      { wch: 30 }, // Commentaires
+    ];
+    ws['!cols'] = colWidths;
+
+    // Generate filename with current date
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const filename = `team-pointage-entries-${dateStr}.xlsx`;
+
+    // Download file
+    XLSX.writeFile(wb, filename);
+  };
+
+  const clearFilters = () => {
+    setFilterUser('');
+    setFilterCstrWeek('');
+    setFilterDate('');
+    setFilterClefImputation('');
+    setFilterLibelle('');
+    setFilterFonction('');
+    setFilterDateBesoin('');
+    setFilterStatus('');
+  };
+
+  const hasActiveFilters = filterUser || filterCstrWeek || filterDate || 
+    filterClefImputation || filterLibelle || filterFonction || 
+    filterDateBesoin || filterStatus;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -82,7 +285,7 @@ export function TeamPointageTable() {
     );
   }
 
-  if (entries.length === 0) {
+  if (allEntries.length === 0) {
     return (
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center">
         <p className="text-slate-600 text-lg mb-2">No pointage entries found</p>
@@ -96,14 +299,186 @@ export function TeamPointageTable() {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-slate-900">
             Team Pointage Entries
           </h3>
-          <div className="text-sm text-slate-600">
-            Total: <span className="font-medium text-slate-900">{entries.length}</span> entries
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-600">
+              Total: <span className="font-medium text-slate-900">{filteredEntries.length}</span> entries
+              {hasActiveFilters && (
+                <span className="ml-2 text-blue-600">
+                  (filtered from {allEntries.length})
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleExportToExcel}
+              disabled={filteredEntries.length === 0}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Download as Excel
+            </button>
           </div>
         </div>
+
+        {/* Filters Section */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {/* User Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              User
+            </label>
+            <select
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Users</option>
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.name}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* CSTR Week Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              CSTR Week
+            </label>
+            <select
+              value={filterCstrWeek}
+              onChange={(e) => setFilterCstrWeek(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Weeks</option>
+              {uniqueCstrWeeks.map((week) => (
+                <option key={week} value={week}>
+                  {week}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Date
+            </label>
+            <input
+              type="text"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              placeholder="DD/MM/YYYY"
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Clef d'imputation Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Clef d'imputation
+            </label>
+            <select
+              value={filterClefImputation}
+              onChange={(e) => setFilterClefImputation(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All</option>
+              {uniqueValues.clefImputation.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Libellé Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Libellé
+            </label>
+            <select
+              value={filterLibelle}
+              onChange={(e) => setFilterLibelle(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All</option>
+              {uniqueValues.libelle.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Fonction Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Fonction
+            </label>
+            <select
+              value={filterFonction}
+              onChange={(e) => setFilterFonction(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All</option>
+              {uniqueValues.fonction.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date besoin Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Date besoin
+            </label>
+            <input
+              type="text"
+              value={filterDateBesoin}
+              onChange={(e) => setFilterDateBesoin(e.target.value)}
+              placeholder="DD/MM/YYYY"
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Status
+            </label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All</option>
+              {uniqueValues.status.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Clear Filters Button */}
+        {hasActiveFilters && (
+          <div className="mt-3">
+            <button
+              onClick={clearFilters}
+              className="text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -143,45 +518,62 @@ export function TeamPointageTable() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {entries.map((entry) => (
-              <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="text-sm font-medium text-slate-900">
-                    {entry.user_name}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {entry.user_email}
-                  </div>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
-                  {formatDateString(entry.date_pointage)}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-900">
-                  {entry.clef_imputation || '-'}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-900">
-                  {entry.libelle || '-'}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-900">
-                  {entry.fonction || '-'}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
-                  {formatDateString(entry.date_besoin) || '-'}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-900">
-                  {entry.heures_theoriques || '-'}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-900">
-                  {entry.heures_passees || '-'}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {getStatusBadge(entry.status)}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">
-                  {entry.commentaires || '-'}
+            {filteredEntries.length === 0 ? (
+              <tr>
+                <td colSpan="10" className="px-4 py-8 text-center text-slate-500">
+                  No entries match the current filters.
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredEntries.map((entry) => (
+                <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="text-sm font-medium text-slate-900">
+                      {entry.user_name}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
+                    {formatDateString(entry.date_pointage)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-900">
+                    {entry.clef_imputation || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-900">
+                    {entry.libelle || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-900">
+                    {entry.fonction || '-'}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
+                    {formatDateString(entry.date_besoin) || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-900">
+                    {entry.heures_theoriques || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-900">
+                    {entry.heures_passees || '-'}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <select
+                      value={entry.status || 'draft'}
+                      onChange={(e) => handleStatusChange(entry.id, e.target.value)}
+                      disabled={updatingStatus.has(entry.id)}
+                      className={`px-2 py-1 text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-blue-500 ${
+                        entry.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                        entry.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      } ${updatingStatus.has(entry.id) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="submitted">Submitted</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">
+                    {entry.commentaires || '-'}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

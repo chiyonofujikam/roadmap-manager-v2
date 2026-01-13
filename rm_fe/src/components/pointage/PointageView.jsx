@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Save, Send, Trash2, Plus, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Send, Trash2, Plus, Lock, Edit, X, Clock } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../contexts/NotificationContext';
 import { api } from '../../lib/api';
@@ -33,6 +33,10 @@ export function PointageView() {
   const [fonctionOptions, setFonctionOptions] = useState([]);
   const [lcLoading, setLcLoading] = useState(true);
   const tableScrollContainerRef = useRef(null);
+  const [showModificationModal, setShowModificationModal] = useState(false);
+  const [modificationEntryId, setModificationEntryId] = useState(null);
+  const [modificationData, setModificationData] = useState({ ...initialEntryData, comment: '' });
+  const [pendingRequests, setPendingRequests] = useState(new Set());
 
   const weekDays = getWeekDays(currentWeekStart);
 
@@ -47,7 +51,14 @@ export function PointageView() {
   useEffect(() => {
     loadEntriesForWeek();
     loadLCOptions();
+    checkPendingRequests();
   }, [currentWeekStart, user]);
+
+  useEffect(() => {
+    // Check for pending requests periodically
+    const interval = setInterval(checkPendingRequests, 30000);
+    return () => clearInterval(interval);
+  }, [entries]);
 
   useEffect(() => {
     // Initialize editing state for all entries when day is selected
@@ -132,6 +143,74 @@ export function PointageView() {
       setFonctionOptions([]);
     } finally {
       setLcLoading(false);
+    }
+  };
+
+  const checkPendingRequests = async () => {
+    try {
+      const data = await api.getMyModificationRequests(0, 1000);
+      const pending = new Set();
+      (data.requests || []).forEach(req => {
+        if (req.status === 'pending' && req.entry_id) {
+          pending.add(req.entry_id);
+        }
+      });
+      setPendingRequests(pending);
+    } catch (err) {
+      console.error('Error checking pending requests:', err);
+    }
+  };
+
+  const handleRequestModification = (entryId) => {
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    const entryData = editingEntries[entryId] || entry;
+    setModificationEntryId(entryId);
+    setModificationData({
+      clef_imputation: entryData.clef_imputation || '',
+      libelle: entryData.libelle || '',
+      fonction: entryData.fonction || '',
+      date_besoin: entryData.date_besoin || '',
+      heures_theoriques: entryData.heures_theoriques || '',
+      heures_passees: entryData.heures_passees || '',
+      commentaires: entryData.commentaires || '',
+      comment: '',
+    });
+    setShowModificationModal(true);
+  };
+
+  const handleSubmitModificationRequest = async () => {
+    if (!modificationEntryId) return;
+
+    try {
+      setLoading(true);
+      const requestedData = {
+        clef_imputation: modificationData.clef_imputation,
+        libelle: modificationData.libelle,
+        fonction: modificationData.fonction,
+        date_besoin: modificationData.date_besoin,
+        heures_theoriques: modificationData.heures_theoriques,
+        heures_passees: modificationData.heures_passees,
+        commentaires: modificationData.commentaires,
+      };
+
+      await api.createModificationRequest(
+        modificationEntryId,
+        requestedData,
+        modificationData.comment || null
+      );
+
+      showMessage('success', 'Modification request created successfully');
+      setShowModificationModal(false);
+      setModificationEntryId(null);
+      setModificationData({ ...initialEntryData, comment: '' });
+      await checkPendingRequests();
+    } catch (error) {
+      console.error('Error creating modification request:', error);
+      showMessage('error', error.message || 'Failed to create modification request');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -685,8 +764,24 @@ export function PointageView() {
                                   </>
                                 )}
                                 {isSubmitted && (
-                                  <div className="flex items-center gap-1 text-green-600" title="Submitted">
-                                    <Lock className="w-4 h-4" />
+                                  <div className="flex items-center gap-2">
+                                    {pendingRequests.has(entry.id) ? (
+                                      <div className="flex items-center gap-1 text-yellow-600" title="Modification request pending">
+                                        <Clock className="w-4 h-4" />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleRequestModification(entry.id)}
+                                        disabled={loading}
+                                        className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Request Modification"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                    <div className="flex items-center gap-1 text-green-600" title="Submitted">
+                                      <Lock className="w-4 h-4" />
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -703,6 +798,174 @@ export function PointageView() {
           )}
         </div>
       </div>
+
+      {/* Modification Request Modal */}
+      {showModificationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Request Modification
+              </h3>
+              <button
+                onClick={() => {
+                  setShowModificationModal(false);
+                  setModificationEntryId(null);
+                  setModificationData({ ...initialEntryData, comment: '' });
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 mb-4">
+                Update the fields you want to modify. Leave unchanged fields as they are.
+              </p>
+
+              {/* Clef d'imputation */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Clef d'imputation
+                </label>
+                <AutocompleteInput
+                  label=""
+                  value={modificationData.clef_imputation}
+                  onChange={(value) => setModificationData({ ...modificationData, clef_imputation: value })}
+                  options={clefImputationOptions}
+                  disabled={loading || lcLoading}
+                  placeholder="Select..."
+                />
+              </div>
+
+              {/* Libellé */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Libellé
+                </label>
+                <AutocompleteInput
+                  label=""
+                  value={modificationData.libelle}
+                  onChange={(value) => setModificationData({ ...modificationData, libelle: value })}
+                  options={libelleOptions}
+                  disabled={loading || lcLoading}
+                  placeholder="Select..."
+                />
+              </div>
+
+              {/* Fonction */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Fonction
+                </label>
+                <AutocompleteInput
+                  label=""
+                  value={modificationData.fonction}
+                  onChange={(value) => setModificationData({ ...modificationData, fonction: value })}
+                  options={fonctionOptions}
+                  disabled={loading || lcLoading}
+                  placeholder="Select..."
+                />
+              </div>
+
+              {/* Date du besoin */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Date du besoin
+                </label>
+                <input
+                  type="date"
+                  value={modificationData.date_besoin || ''}
+                  onChange={(e) => setModificationData({ ...modificationData, date_besoin: e.target.value })}
+                  disabled={loading}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100"
+                />
+              </div>
+
+              {/* Heures théoriques */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Heures théoriques
+                </label>
+                <input
+                  type="text"
+                  value={modificationData.heures_theoriques || ''}
+                  onChange={(e) => setModificationData({ ...modificationData, heures_theoriques: e.target.value })}
+                  disabled={loading}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100"
+                  placeholder="Enter hours..."
+                />
+              </div>
+
+              {/* Heures passées */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Heures passées
+                </label>
+                <input
+                  type="text"
+                  value={modificationData.heures_passees || ''}
+                  onChange={(e) => setModificationData({ ...modificationData, heures_passees: e.target.value })}
+                  disabled={loading}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100"
+                  placeholder="Enter hours..."
+                />
+              </div>
+
+              {/* Commentaires */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Commentaires
+                </label>
+                <input
+                  type="text"
+                  value={modificationData.commentaires || ''}
+                  onChange={(e) => setModificationData({ ...modificationData, commentaires: e.target.value })}
+                  disabled={loading}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100"
+                  placeholder="Enter comment..."
+                />
+              </div>
+
+              {/* Request Comment */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Request Comment (Optional)
+                </label>
+                <textarea
+                  value={modificationData.comment || ''}
+                  onChange={(e) => setModificationData({ ...modificationData, comment: e.target.value })}
+                  rows={3}
+                  disabled={loading}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100"
+                  placeholder="Explain why you need this modification..."
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowModificationModal(false);
+                  setModificationEntryId(null);
+                  setModificationData({ ...initialEntryData, comment: '' });
+                }}
+                className="px-4 py-2 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitModificationRequest}
+                disabled={loading}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

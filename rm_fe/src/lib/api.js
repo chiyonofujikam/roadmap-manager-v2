@@ -177,6 +177,16 @@ export const api = {
   },
 
   /**
+   * Update pointage entry status (for responsible/admin users)
+   */
+  async updatePointageEntryStatus(entryId, newStatus) {
+    return apiRequest(`/api/v1/pointage/entries/${entryId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+  },
+
+  /**
    * Create a modification request for a submitted entry
    */
   async createModificationRequest(entryId, requestedData, comment = null) {
@@ -192,9 +202,14 @@ export const api = {
 
   /**
    * Get modification requests (for responsible/admin)
+   * status: optional filter ("pending", "approved", "rejected"). If null, returns all.
    */
-  async getModificationRequests(skip = 0, limit = 100) {
-    return apiRequest(`/api/v1/pointage/modification-requests?skip=${skip}&limit=${limit}`);
+  async getModificationRequests(skip = 0, limit = 100, status = null) {
+    let url = `/api/v1/pointage/modification-requests?skip=${skip}&limit=${limit}`;
+    if (status) {
+      url += `&status=${status}`;
+    }
+    return apiRequest(url);
   },
 
   /**

@@ -14,6 +14,20 @@ export function normalizeDateString(dateStr) {
   return String(dateStr).split('T')[0];
 }
 
+export function formatDateString(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit' 
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 export function getWeekDays(weekStart) {
   const days = [];
   for (let i = 0; i < 7; i++) {
@@ -50,4 +64,27 @@ export function getWeekCstr(weekStart) {
   const weekNumber = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
   const weekNumberStr = weekNumber.toString().padStart(2, '0');
   return `S${yearLastTwoDigits}${weekNumberStr}`;
+}
+
+/**
+ * Convert cstr_semaine from "YYYY-W%V" format (e.g., "2026-W01") to "SXXYY" format (e.g., "S2601")
+ */
+export function convertCstrSemaineToSXXYY(cstrSemaine) {
+  if (!cstrSemaine) return null;
+  
+  // Handle format like "2026-W01"
+  const match = cstrSemaine.match(/(\d{4})-W(\d{2})/);
+  if (match) {
+    const year = match[1];
+    const week = match[2];
+    const yearLastTwoDigits = year.slice(-2);
+    return `S${yearLastTwoDigits}${week}`;
+  }
+  
+  // If already in SXXYY format, return as is
+  if (cstrSemaine.match(/^S\d{4}$/)) {
+    return cstrSemaine;
+  }
+  
+  return null;
 }

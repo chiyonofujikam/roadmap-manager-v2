@@ -1,9 +1,30 @@
+import { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { TeamPointageTable } from '../responsible/TeamPointageTable';
+import { ModificationRequests } from '../responsible/ModificationRequests';
+import { api } from '../../lib/api';
 
 export function AdminResponsibleView() {
   const { user, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState('entries');
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  useEffect(() => {
+    loadPendingRequestsCount();
+    // Poll for new requests every 30 seconds
+    const interval = setInterval(loadPendingRequestsCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadPendingRequestsCount = async () => {
+    try {
+      const data = await api.getModificationRequests(0, 1000);
+      setPendingRequestsCount(data.requests?.filter(r => r.status === 'pending').length || 0);
+    } catch (err) {
+      console.error('Error loading pending requests count:', err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -34,10 +55,51 @@ export function AdminResponsibleView() {
       </header>
       <main className="p-4">
         <div className="max-w-7xl mx-auto">
-          {/* Team Pointage Table */}
-          <div className="mb-6">
-            <TeamPointageTable />
+          {/* Tabs */}
+          <div className="mb-6 border-b border-slate-200">
+            <nav className="flex gap-1">
+              <button
+                onClick={() => setActiveTab('entries')}
+                className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                  activeTab === 'entries'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Team Entries
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('requests');
+                  loadPendingRequestsCount();
+                }}
+                className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                  activeTab === 'requests'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Modification Requests
+                {pendingRequestsCount > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </button>
+            </nav>
           </div>
+
+          {/* Tab Content */}
+          {activeTab === 'entries' && (
+            <div className="mb-6">
+              <TeamPointageTable />
+            </div>
+          )}
+          {activeTab === 'requests' && (
+            <div className="mb-6">
+              <ModificationRequests />
+            </div>
+          )}
         </div>
       </main>
     </div>

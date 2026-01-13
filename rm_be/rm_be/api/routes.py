@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Body, HTTPException, status
 
 from rm_be.api.deps import (CurrentUser, RequireAdminOrResponsible,
                             RequireCollaborator)
@@ -87,8 +87,7 @@ async def get_team_pointage_entries(
     current_user: dict = RequireAdminOrResponsible(), 
     skip: int = 0, 
     limit: int = 1000,
-    week_start: Optional[str] = None
-):
+    week_start: Optional[str] = None):
     """
     Get all pointage entries for a responsible's team.
 
@@ -540,6 +539,79 @@ async def submit_pointage_entry(entry_id: str, current_user: dict = RequireColla
             detail=f"Error submitting pointage entry: {str(e)}"
         )
 
+@router.put("/pointage/entries/{entry_id}/status")
+async def update_pointage_entry_status(
+    entry_id: str, 
+    status_data: dict = Body(...),
+    current_user: dict = RequireAdminOrResponsible()):
+    """
+    Update the status of a pointage entry (for responsible/admin users only).
+    
+    Args:
+        entry_id: ID of the pointage entry to update
+        status_data: Dictionary with "status" field (draft, submitted, validated, rejected)
+        current_user: Authenticated user (admin or responsible)
+    
+    Returns:
+        Dictionary with entry ID, message, and updated status
+    """
+    try:
+        user_repo = UserRepository()
+        pointage_repo = PointageEntryRepository()
+        db_user = await get_db_user_from_current(current_user, user_repo)
+        
+        if not ObjectId.is_valid(entry_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid entry ID"
+            )
+        
+        new_status = status_data.get("status")
+        if new_status not in ["draft", "submitted"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid status. Must be either 'draft' or 'submitted'"
+            )
+        
+        entry_object_id = ObjectId(entry_id)
+        existing_entry = await pointage_repo.find_by_id(entry_object_id)
+        if not existing_entry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Pointage entry not found"
+            )
+        
+        # Update status
+        update_dict = {
+            "status": new_status,
+            "updated_at": datetime.utcnow(),
+        }
+        
+        if new_status == "submitted":
+            update_dict["submitted_at"] = datetime.utcnow()
+
+        elif existing_entry.get("status") == "submitted" and new_status == "draft":
+            update_dict["submitted_at"] = None
+        
+        await pointage_repo.collection.update_one(
+            {"_id": entry_object_id},
+            {"$set": update_dict}
+        )
+        
+        return {
+            "id": entry_id,
+            "message": f"Entry status updated to {new_status}",
+            "status": new_status
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating entry status: {str(err)}"
+        )
+
 @router.delete("/pointage/entries/{entry_id}")
 async def delete_pointage_entry(entry_id: str, current_user: dict = RequireCollaborator):
     """
@@ -594,7 +666,6 @@ async def delete_pointage_entry(entry_id: str, current_user: dict = RequireColla
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting pointage entry: {str(e)}"
         )
-
 
 @router.post("/pointage/modification-requests")
 async def create_modification_request(request_data: ModificationRequestCreate, current_user: dict = RequireCollaborator):
@@ -678,9 +749,12 @@ async def create_modification_request(request_data: ModificationRequestCreate, c
             detail=f"Error creating modification request: {str(err)}"
         )
 
-
 @router.get("/pointage/modification-requests")
-async def get_modification_requests(current_user: dict = RequireAdminOrResponsible(), skip: int = 0, limit: int = 100):
+async def get_modification_requests(
+    current_user: dict = RequireAdminOrResponsible(), 
+    skip: int = 0, 
+    limit: int = 100,
+    status: Optional[str] = None):
     """
     Get modification requests for a responsible's team (or all for admin).
 
@@ -688,6 +762,7 @@ async def get_modification_requests(current_user: dict = RequireAdminOrResponsib
         current_user: Authenticated user (admin or responsible)
         skip: Number of requests to skip
         limit: Maximum number of requests to return
+        status: Optional status filter ("pending", "approved", "rejected"). If None, returns all requests.
 
     Returns:
         Dictionary with requests list and metadata
@@ -701,8 +776,11 @@ async def get_modification_requests(current_user: dict = RequireAdminOrResponsib
         user_type = db_user.get("user_type", current_user.get("user_type", ""))
         responsible_id = db_user.get("_id")
         if user_type == "admin":
+            query = {"is_deleted": {"$ne": True}}
+            if status:
+                query["status"] = status
             requests = await modification_repo.find_many(
-                {"is_deleted": {"$ne": True}, "status": "pending"},
+                query,
                 skip=skip,
                 limit=limit,
                 sort=[("created_at", -1)]
@@ -713,7 +791,8 @@ async def get_modification_requests(current_user: dict = RequireAdminOrResponsib
                 skip=skip,
                 limit=limit
             )
-            requests = [r for r in requests if r.get("status") == "pending"]
+            if status:
+                requests = [r for r in requests if r.get("status") == status]
         
         formatted_requests = []
         for req in requests:
@@ -765,6 +844,9 @@ async def get_modification_requests(current_user: dict = RequireAdminOrResponsib
                 "comment": req.get("comment"),
                 "status": req.get("status", "pending"),
                 "created_at": req.get("created_at"),
+                "reviewed_at": req.get("reviewed_at"),
+                "reviewed_by": req.get("reviewed_by"),
+                "review_comment": req.get("review_comment"),
             })
 
         return {
@@ -916,7 +998,6 @@ async def review_modification_request(request_id: str, review_data: Modification
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error reviewing modification request: {str(err)}"
         )
-
 
 @router.get("/pointage/modification-requests/my-requests")
 async def get_my_modification_requests(current_user: dict = RequireCollaborator, skip: int = 0, limit: int = 100):

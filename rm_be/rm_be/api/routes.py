@@ -1,20 +1,27 @@
 """API routes for the application"""
 
 from datetime import date, datetime, timedelta
+from io import BytesIO
 from typing import Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, File, HTTPException, UploadFile, status
+from openpyxl import load_workbook
 
 from rm_be.api.deps import (CurrentUser, RequireAdminOrResponsible,
                             RequireCollaborator)
-from rm_be.api.schemas import (ModificationRequestCreate,
+from rm_be.api.schemas import (ActiveLCUpdate, ConditionalListCreate,
+                               LCItemCreate, LCItemUpdate, LCMergeRequest,
+                               ModificationRequestCreate,
                                ModificationRequestReview, PointageEntryCreate,
-                               PointageEntryUpdate)
-from rm_be.api.utils import get_db_user_from_current, serialize_date
-from rm_be.database import (ConditionalListRepository, ModificationRequest,
+                               PointageEntryUpdate, UserCreate, UserUpdate)
+from rm_be.api.utils import (get_active_lc_name, get_cstr_semaine,
+                             get_db_user_from_current, serialize_date,
+                             set_active_lc_name)
+from rm_be.database import (ConditionalList, ConditionalListItem,
+                            ConditionalListRepository, ModificationRequest,
                             ModificationRequestRepository, PointageEntry,
-                            PointageEntryData, PointageEntryRepository,
+                            PointageEntryData, PointageEntryRepository, User,
                             UserRepository)
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
@@ -23,7 +30,7 @@ router = APIRouter(prefix="/api/v1", tags=["api"])
 @router.get("/conditional-lists/default/items")
 async def get_default_lc_items(current_user: dict = CurrentUser):
     """
-    Get active items from the default LC (Liste Conditionnelle).
+    Get active items from the active LC (Liste Conditionnelle).
     This endpoint is accessible to all authenticated users (collaborators, responsibles, admins).
     Returns the LC items formatted for frontend autocomplete components.
     """
@@ -41,15 +48,16 @@ async def get_default_lc_items(current_user: dict = CurrentUser):
 
     try:
         repo = ConditionalListRepository()
-        default_lc = await repo.find_by_name("Default LC")
-        if not default_lc:
+        active_lc_name = await get_active_lc_name()
+        active_lc = await repo.find_by_name(active_lc_name)
+        if not active_lc:
             return {
                 "clef_imputation": [],
                 "libelle": [],
                 "fonction": []
             }
 
-        active_items = await repo.find_active_items(default_lc["_id"])
+        active_items = await repo.find_active_items(active_lc["_id"])
         if not active_items:
             return {
                 "clef_imputation": [],
@@ -116,7 +124,7 @@ async def get_team_pointage_entries(
         if week_start:
             try:
                 week_start_date = datetime.strptime(week_start, "%Y-%m-%d").date()
-                cstr_semaine = week_start_date.strftime("%Y-W%V")
+                cstr_semaine = get_cstr_semaine(week_start_date)
                 query["entry_data.cstr_semaine"] = cstr_semaine
             except ValueError:
                 raise HTTPException(
@@ -277,7 +285,7 @@ async def get_pointage_entries_for_week(week_start: str, current_user: dict = Re
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid date format. Use YYYY-MM-DD"
             )
-        cstr_semaine = week_start_date.strftime("%Y-W%V")
+        cstr_semaine = get_cstr_semaine(week_start_date)
         user_id_str = str(user_id) if isinstance(user_id, ObjectId) else user_id
         query = {
             "user_id": {"$in": [user_id, user_id_str]},
@@ -340,7 +348,7 @@ async def create_pointage_entry(entry_data: PointageEntryCreate, current_user: d
             )
 
         week_start = date_pointage_obj - timedelta(days=date_pointage_obj.weekday())
-        cstr_semaine = week_start.strftime("%Y-W%V")
+        cstr_semaine = get_cstr_semaine(week_start)
         pointage_entry_data = PointageEntryData(
             date_pointage=date_pointage_obj,
             cstr_semaine=cstr_semaine,
@@ -1071,4 +1079,581 @@ async def get_my_modification_requests(current_user: dict = RequireCollaborator,
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching modification requests: {str(err)}"
+        )
+
+
+@router.get("/conditional-lists/default/all-items")
+async def get_all_lc_items(current_user: dict = RequireAdminOrResponsible()):
+    """
+    Get all items from the active LC (Liste Conditionnelle) for admin editing.
+    Returns all items including inactive ones.
+    """
+    try:
+        repo = ConditionalListRepository()
+        active_lc_name = await get_active_lc_name()
+        active_lc = await repo.find_by_name(active_lc_name)
+        if not active_lc:
+            return {"items": []}
+
+        items = active_lc.get("items", [])
+        formatted_items = []
+        for idx, item in enumerate(items):
+            formatted_items.append({
+                "index": idx,
+                "clef_imputation": item.get("clef_imputation", ""),
+                "libelle": item.get("libelle", ""),
+                "fonction": item.get("fonction", ""),
+                "is_active": item.get("is_active", True),
+            })
+
+        return {"items": formatted_items}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching LC items: {str(e)}"
+        )
+
+
+@router.put("/conditional-lists/default/items/update")
+async def update_lc_item(update_data: LCItemUpdate, current_user: dict = RequireAdminOrResponsible()):
+    """
+    Update a single cell in an LC item.
+    Each cell (clef_imputation, libelle, fonction) can be updated independently.
+    """
+    try:
+        repo = ConditionalListRepository()
+        active_lc_name = await get_active_lc_name()
+        active_lc = await repo.find_by_name(active_lc_name)
+        if not active_lc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Active LC '{active_lc_name}' not found"
+            )
+
+        items = active_lc.get("items", [])
+        if update_data.item_index < 0 or update_data.item_index >= len(items):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid item index: {update_data.item_index}"
+            )
+
+        if update_data.field not in ["clef_imputation", "libelle", "fonction"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid field: {update_data.field}. Must be one of: clef_imputation, libelle, fonction"
+            )
+
+        update_path = f"items.{update_data.item_index}.{update_data.field}"
+        update_dict = {
+            update_path: update_data.value,
+            "updated_at": datetime.utcnow(),
+            "updated_by": current_user.get("email", "system"),
+        }
+
+        if update_data.is_active is not None:
+            update_dict[f"items.{update_data.item_index}.is_active"] = update_data.is_active
+
+        result = await repo.collection.update_one(
+            {"_id": active_lc["_id"]},
+            {"$set": update_dict}
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update LC item"
+            )
+
+        return {
+            "message": "LC item updated successfully",
+            "item_index": update_data.item_index,
+            "field": update_data.field,
+            "value": update_data.value
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating LC item: {str(e)}"
+        )
+
+@router.get("/conditional-lists/all")
+async def get_all_conditional_lists(current_user: dict = RequireAdminOrResponsible()):
+    """
+    Get all conditional lists (names only) for admin selection.
+    Returns list of all conditional list names.
+    """
+    try:
+        repo = ConditionalListRepository()
+        lists = await repo.find_active_lists(skip=0, limit=1000)
+        formatted_lists = []
+        for lc in lists:
+            if lc.get("name") != "_SYSTEM_ACTIVE_LC":
+                formatted_lists.append({
+                    "name": lc.get("name", ""),
+                    "description": lc.get("description", ""),
+                })
+
+        return {"lists": formatted_lists}
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching conditional lists: {str(e)}"
+        )
+
+
+@router.get("/conditional-lists/active")
+async def get_active_conditional_list(current_user: dict = RequireAdminOrResponsible()):
+    """
+    Get the name of the currently active conditional list.
+    """
+    try:
+        active_name = await get_active_lc_name()
+        return {"active_lc_name": active_name}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching active LC: {str(e)}"
+        )
+
+@router.put("/conditional-lists/active")
+async def set_active_conditional_list(update_data: ActiveLCUpdate, current_user: dict = RequireAdminOrResponsible()):
+    """
+    Set the active conditional list that will be used system-wide.
+    """
+    try:
+        success = await set_active_lc_name(update_data.lc_name)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Conditional list '{update_data.lc_name}' not found"
+            )
+
+        return {
+            "message": f"Active conditional list set to '{update_data.lc_name}'",
+            "active_lc_name": update_data.lc_name
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error setting active LC: {str(e)}"
+        )
+
+@router.post("/conditional-lists")
+async def create_conditional_list(list_data: ConditionalListCreate, current_user: dict = RequireAdminOrResponsible()):
+    """
+    Create a new conditional list with items.
+    """
+    try:
+        repo = ConditionalListRepository()
+        db_user = await get_db_user_from_current(current_user, UserRepository())
+        
+        # Check if name already exists
+        existing = await repo.find_by_name(list_data.name)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Conditional list with name '{list_data.name}' already exists"
+            )
+        
+        # Convert items to ConditionalListItem
+        items = [
+            ConditionalListItem(
+                clef_imputation=item.clef_imputation,
+                libelle=item.libelle,
+                fonction=item.fonction,
+                is_active=item.is_active
+            )
+            for item in list_data.items
+        ]
+        
+        conditional_list = ConditionalList(
+            name=list_data.name,
+            description=list_data.description,
+            items=items,
+            created_by=db_user.get("email", current_user.get("email", "system")),
+            updated_by=db_user.get("email", current_user.get("email", "system"))
+        )
+        
+        lc_id = await repo.create(conditional_list)
+        
+        return {
+            "id": str(lc_id),
+            "name": list_data.name,
+            "message": f"Conditional list '{list_data.name}' created successfully with {len(items)} items"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating conditional list: {str(e)}"
+        )
+
+
+@router.post("/conditional-lists/merge")
+async def merge_lc_items(merge_data: LCMergeRequest, current_user: dict = RequireAdminOrResponsible()):
+    """
+    Merge items into an existing conditional list, removing duplicates if specified.
+    """
+    try:
+        repo = ConditionalListRepository()
+        db_user = await get_db_user_from_current(current_user, UserRepository())
+        active_lc_name = await get_active_lc_name()
+
+        target_lc = await repo.find_by_name(merge_data.lc_name)
+        if not target_lc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conditional list '{merge_data.lc_name}' not found"
+            )
+
+        existing_items = target_lc.get("items", [])
+
+        existing_clef_imputation = set()
+        existing_libelle = set()
+        existing_fonction = set()
+        if merge_data.remove_duplicates:
+            for item in existing_items:
+                clef = item.get("clef_imputation", "")
+                libelle = item.get("libelle", "")
+                fonction = item.get("fonction", "")
+                if clef:
+                    existing_clef_imputation.add(clef)
+                if libelle:
+                    existing_libelle.add(libelle)
+                if fonction:
+                    existing_fonction.add(fonction)
+
+        new_items = []
+        duplicates_count = 0
+        for item in merge_data.items:
+            if merge_data.remove_duplicates:
+                is_duplicate = False
+                if item.clef_imputation and item.clef_imputation in existing_clef_imputation:
+                    is_duplicate = True
+                if item.libelle and item.libelle in existing_libelle:
+                    is_duplicate = True
+                if item.fonction and item.fonction in existing_fonction:
+                    is_duplicate = True
+
+                if is_duplicate:
+                    duplicates_count += 1
+                    continue
+
+            if item.clef_imputation:
+                existing_clef_imputation.add(item.clef_imputation)
+            if item.libelle:
+                existing_libelle.add(item.libelle)
+            if item.fonction:
+                existing_fonction.add(item.fonction)
+
+            new_items.append({
+                "clef_imputation": item.clef_imputation,
+                "libelle": item.libelle,
+                "fonction": item.fonction,
+                "is_active": item.is_active
+            })
+        if new_items:
+            for item in new_items:
+                await repo.add_item(target_lc["_id"], item, db_user.get("email", current_user.get("email", "system")))
+
+        return {
+            "message": f"Merged {len(new_items)} new items into '{merge_data.lc_name}'",
+            "added": len(new_items),
+            "duplicates_skipped": duplicates_count,
+            "total_items": len(existing_items) + len(new_items)
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error merging items: {str(e)}"
+        )
+
+
+@router.post("/conditional-lists/parse-excel")
+async def parse_excel_file(
+    file: UploadFile = File(...),
+    current_user: dict = RequireAdminOrResponsible()
+):
+    """
+    Parse an Excel file and extract LC items.
+    Expected format:
+    - Row 2: Headers (Clef d'imputation, Libellé, Fonction)
+    - Row 3+: Data rows
+    """
+    try:
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be an Excel file (.xlsx or .xls)"
+            )
+
+        contents = await file.read()
+        try:
+            workbook = load_workbook(BytesIO(contents), data_only=True)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid Excel file format: {str(e)}"
+            )
+
+        if not workbook.sheetnames:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Excel file has no sheets"
+            )
+
+        sheet = workbook[workbook.sheetnames[0]]
+        if sheet.max_row < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Excel file must have at least 2 rows (header and data)"
+            )
+
+        headers = []
+        for cell in sheet[2]:
+            headers.append(str(cell.value or '').strip())
+
+        header_map = {}
+        for idx, header in enumerate(headers):
+            header_lower = header.lower()
+            if 'clef' in header_lower or 'imputation' in header_lower:
+                header_map['clef_imputation'] = idx + 1
+                continue
+
+            if 'libellé' in header_lower or 'libelle' in header_lower:
+                header_map['libelle'] = idx + 1
+                continue
+
+            if 'fonction' in header_lower:
+                header_map['fonction'] = idx + 1
+                continue
+
+        if 'clef_imputation' not in header_map or 'libelle' not in header_map or 'fonction' not in header_map:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Excel file must have columns: Clef d'imputation, Libellé, Fonction"
+            )
+
+        items = []
+        for row_num in range(3, sheet.max_row + 1):
+            clef_imputation = str(sheet.cell(row=row_num, column=header_map['clef_imputation']).value or '').strip()
+            libelle = str(sheet.cell(row=row_num, column=header_map['libelle']).value or '').strip()
+            fonction = str(sheet.cell(row=row_num, column=header_map['fonction']).value or '').strip()
+            if not clef_imputation and not libelle and not fonction:
+                continue
+
+            items.append({
+                "clef_imputation": clef_imputation if clef_imputation else "-",
+                "libelle": libelle if libelle else "-",
+                "fonction": fonction if fonction else "-",
+                "is_active": True
+            })
+
+        if not items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No valid data rows found in Excel file"
+            )
+
+        return {
+            "items": items,
+            "count": len(items)
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error parsing Excel file: {str(e)}"
+        )
+
+
+@router.get("/users/all")
+async def get_all_users(current_user: dict = RequireAdminOrResponsible()):
+    """
+    Get all users (collaborators and responsibles) for admin.
+    For responsible users, returns their team members only.
+    """
+    try:
+        user_repo = UserRepository()
+        db_user = await get_db_user_from_current(current_user, user_repo)
+        user_type = db_user.get("user_type", current_user.get("user_type", ""))
+
+        if user_type == "admin":
+            collaborators = await user_repo.find_many(
+                {
+                    "user_type": "collaborator",
+                    "is_deleted": {"$ne": True}
+                },
+                skip=0,
+                limit=1000,
+                sort=[("name", 1)]
+            )
+            responsibles = await user_repo.find_responsibles(skip=0, limit=1000)
+            all_users = collaborators + responsibles
+        else:
+            responsible_id = db_user.get("_id")
+            all_users = await user_repo.find_by_responsible(responsible_id, skip=0, limit=1000)
+
+        formatted_users = []
+        for user in all_users:
+            responsible_id = user.get("responsible_id")
+            formatted_users.append({
+                "id": str(user.get("_id", "")),
+                "name": user.get("name", "Unknown"),
+                "email": user.get("email", ""),
+                "user_type": user.get("user_type", ""),
+                "status": user.get("status", "active"),
+                "responsible_id": str(responsible_id) if responsible_id else None,
+            })
+
+        return {"users": formatted_users}
+
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching users: {str(err)}"
+        )
+
+@router.post("/users")
+async def create_user(user_data: UserCreate, current_user: dict = RequireAdminOrResponsible()):
+    """
+    Create a new user (collaborator or responsible).
+    """
+    try:
+        user_repo = UserRepository()
+        db_user = await get_db_user_from_current(current_user, user_repo)
+        if user_data.user_type not in ["collaborator", "responsible"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="user_type must be 'collaborator' or 'responsible'"
+            )
+
+        if user_data.status not in ["active", "inactive"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="status must be 'active' or 'inactive'"
+            )
+
+        if user_data.email:
+            existing = await user_repo.find_by_email(user_data.email)
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"User with email {user_data.email} already exists"
+                )
+
+        responsible_id = None
+        if user_data.responsible_id:
+            if ObjectId.is_valid(user_data.responsible_id):
+                responsible_id = ObjectId(user_data.responsible_id)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid responsible_id format"
+                )
+
+        user = User(
+            name=user_data.name,
+            email=user_data.email,
+            user_type=user_data.user_type,
+            status=user_data.status,
+            responsible_id=responsible_id,
+            created_by=db_user.get("email", current_user.get("email", "system")),
+            updated_by=db_user.get("email", current_user.get("email", "system"))
+        )
+
+        user_id = await user_repo.create(user)
+
+        return {
+            "id": str(user_id),
+            "message": "User created successfully"
+        }
+
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating user: {str(err)}"
+        )
+
+@router.put("/users/{user_id}")
+async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = RequireAdminOrResponsible()):
+    """
+    Update an existing user.
+    """
+    try:
+        user_repo = UserRepository()
+        db_user = await get_db_user_from_current(current_user, user_repo)
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user ID"
+            )
+
+        user_object_id = ObjectId(user_id)
+        existing_user = await user_repo.find_by_id(user_object_id)
+        if not existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        update_dict = {}
+        if user_data.name is not None:
+            update_dict["name"] = user_data.name
+        if user_data.email is not None:
+            existing_by_email = await user_repo.find_by_email(user_data.email)
+            if existing_by_email and str(existing_by_email.get("_id")) != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email {user_data.email} is already taken by another user"
+                )
+            update_dict["email"] = user_data.email
+
+        if user_data.user_type is not None:
+            if user_data.user_type not in ["collaborator", "responsible", "admin"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="user_type must be 'collaborator', 'responsible', or 'admin'"
+                )
+            update_dict["user_type"] = user_data.user_type
+
+        if user_data.status is not None:
+            if user_data.status not in ["active", "inactive"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="status must be 'active' or 'inactive'"
+                )
+            update_dict["status"] = user_data.status
+
+        if user_data.responsible_id is not None:
+            if user_data.responsible_id:
+                if ObjectId.is_valid(user_data.responsible_id):
+                    update_dict["responsible_id"] = ObjectId(user_data.responsible_id)
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid responsible_id format"
+                    )
+            else:
+                update_dict["responsible_id"] = None
+
+        updated_user_data = {**existing_user, **update_dict}
+        updated_user = User(**updated_user_data)
+        await user_repo.update(user_object_id, updated_user, db_user.get("email", current_user.get("email", "system")))
+        return {
+            "id": user_id,
+            "message": "User updated successfully"
+        }
+
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating user: {str(err)}"
         )

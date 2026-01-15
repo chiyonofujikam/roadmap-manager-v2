@@ -1,21 +1,26 @@
 import { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth, isAdmin } from '../../hooks/useAuth';
 import { TeamPointageTable } from '../responsible/TeamPointageTable';
 import { ModificationRequests } from '../responsible/ModificationRequests';
+import { UpdateLC } from './UpdateLC';
+import { AddRemoveUsers } from './AddRemoveUsers';
 import { api } from '../../lib/api';
 
 export function AdminResponsibleView() {
   const { user, signOut } = useAuth();
+  const isUserAdmin = isAdmin(user);
   const [activeTab, setActiveTab] = useState('entries');
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   useEffect(() => {
-    loadPendingRequestsCount();
-    // Poll for new requests every 30 seconds
-    const interval = setInterval(loadPendingRequestsCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    // Only load pending requests count for responsible users
+    if (!isUserAdmin) {
+      loadPendingRequestsCount();
+      const interval = setInterval(loadPendingRequestsCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isUserAdmin]);
 
   const loadPendingRequestsCount = async () => {
     try {
@@ -68,24 +73,49 @@ export function AdminResponsibleView() {
               >
                 Team Entries
               </button>
-              <button
-                onClick={() => {
-                  setActiveTab('requests');
-                  loadPendingRequestsCount();
-                }}
-                className={`px-6 py-3 text-sm font-medium transition-colors relative ${
-                  activeTab === 'requests'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Modification Requests
-                {pendingRequestsCount > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full">
-                    {pendingRequestsCount}
-                  </span>
-                )}
-              </button>
+              {isUserAdmin ? (
+                <>
+                  <button
+                    onClick={() => setActiveTab('update-lc')}
+                    className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                      activeTab === 'update-lc'
+                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Update LC
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('add-remove')}
+                    className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                      activeTab === 'add-remove'
+                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Add/Remove Collaborators & Responsibles
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setActiveTab('requests');
+                    loadPendingRequestsCount();
+                  }}
+                  className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                    activeTab === 'requests'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Modification Requests
+                  {pendingRequestsCount > 0 && (
+                    <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                      {pendingRequestsCount}
+                    </span>
+                  )}
+                </button>
+              )}
             </nav>
           </div>
 
@@ -95,10 +125,25 @@ export function AdminResponsibleView() {
               <TeamPointageTable />
             </div>
           )}
-          {activeTab === 'requests' && (
-            <div className="mb-6">
-              <ModificationRequests />
-            </div>
+          {isUserAdmin ? (
+            <>
+              {activeTab === 'update-lc' && (
+                <div className="mb-6">
+                  <UpdateLC />
+                </div>
+              )}
+              {activeTab === 'add-remove' && (
+                <div className="mb-6">
+                  <AddRemoveUsers />
+                </div>
+              )}
+            </>
+          ) : (
+            activeTab === 'requests' && (
+              <div className="mb-6">
+                <ModificationRequests />
+              </div>
+            )
           )}
         </div>
       </main>

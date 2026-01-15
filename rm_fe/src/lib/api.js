@@ -245,6 +245,134 @@ export const api = {
       return false;
     }
   },
+
+  /**
+   * Get all conditional lists (names only)
+   */
+  async getAllConditionalLists() {
+    return apiRequest('/api/v1/conditional-lists/all');
+  },
+
+  /**
+   * Get the active conditional list name
+   */
+  async getActiveConditionalList() {
+    return apiRequest('/api/v1/conditional-lists/active');
+  },
+
+  /**
+   * Set the active conditional list
+   */
+  async setActiveConditionalList(lcName) {
+    return apiRequest('/api/v1/conditional-lists/active', {
+      method: 'PUT',
+      body: JSON.stringify({ lc_name: lcName }),
+    });
+  },
+
+  /**
+   * Create a new conditional list
+   */
+  async createConditionalList(listData) {
+    return apiRequest('/api/v1/conditional-lists', {
+      method: 'POST',
+      body: JSON.stringify(listData),
+    });
+  },
+
+  /**
+   * Merge items into an existing conditional list
+   */
+  async mergeLCItems(lcName, items, removeDuplicates = true) {
+    return apiRequest('/api/v1/conditional-lists/merge', {
+      method: 'POST',
+      body: JSON.stringify({
+        lc_name: lcName,
+        items: items,
+        remove_duplicates: removeDuplicates,
+      }),
+    });
+  },
+
+  /**
+   * Parse Excel file and extract LC items
+   */
+  async parseExcelFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const token = getAuthToken();
+    const url = `${API_BASE_URL}/api/v1/conditional-lists/parse-excel`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // Don't set Content-Type - let browser set it with boundary for FormData
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        setAuthToken(null);
+        throw new Error('Authentication required');
+      }
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Get all LC items for admin editing (including inactive ones)
+   */
+  async getAllLCItems() {
+    return apiRequest('/api/v1/conditional-lists/default/all-items');
+  },
+
+  /**
+   * Update a single cell in an LC item
+   */
+  async updateLCItem(itemIndex, field, value, isActive = null) {
+    return apiRequest('/api/v1/conditional-lists/default/items/update', {
+      method: 'PUT',
+      body: JSON.stringify({
+        item_index: itemIndex,
+        field: field,
+        value: value,
+        is_active: isActive,
+      }),
+    });
+  },
+
+  /**
+   * Get all users (collaborators and responsibles) for admin
+   */
+  async getAllUsers() {
+    return apiRequest('/api/v1/users/all');
+  },
+
+  /**
+   * Create a new user
+   */
+  async createUser(userData) {
+    return apiRequest('/api/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  },
+
+  /**
+   * Update an existing user
+   */
+  async updateUser(userId, userData) {
+    return apiRequest(`/api/v1/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    });
+  },
 };
 
 export default api;

@@ -11,6 +11,7 @@ from keycloak import KeycloakOpenID
 from keycloak.exceptions import KeycloakError
 
 from rm_be.config import settings
+from rm_be.database import UserRepository
 
 security = HTTPBearer(auto_error=False)
 _keycloak_openid: Optional[KeycloakOpenID] = None
@@ -117,42 +118,94 @@ async def verify_token_keycloak(token: str) -> Dict:
 
 
 async def verify_token_mock(token: str) -> Dict:
-    """Verify token using mock users (for testing)"""
+    """Verify token using mock users (for testing) or database users"""
+    user = None
+    
+    # First, try to find user in mockusers.json
     try:
         mock_users = load_mock_users()
-    except FileNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Mock authentication not configured: {str(e)}"
-        )
-
-    users_dict = mock_users.get("users", {})
-    user = users_dict.get(token)
-    if not user:
-        for user_data in users_dict.values():
-            if user_data.get("email") == token or user_data.get("username") == token:
-                user = user_data
-                break
-
-    if not user:
+        users_dict = mock_users.get("users", {})
+        user = users_dict.get(token)
+        if not user:
+            for user_data in users_dict.values():
+                if user_data.get("email") == token or user_data.get("username") == token:
+                    user = user_data
+                    break
+        
+        # If found in mockusers.json, return it
+        if user:
+            return {
+                "sub": user.get("id", token),
+                "email": user.get("email", token),
+                "preferred_username": user.get("username", token),
+                "name": user.get("name", ""),
+                "realm_access": {
+                    "roles": user.get("roles", [])
+                },
+                "user_type": user.get("user_type", "collaborator"),
+                "user_id": user.get("id", token),
+            }
+    except FileNotFoundError:
+        # If mockusers.json doesn't exist, continue to check database
+        pass
+    
+    # If not found in mockusers.json, check database
+    try:
+        user_repo = UserRepository()
+        db_user = await user_repo.find_by_email(token)
+        
+        if not db_user:
+            # Try finding by name as fallback
+            db_user = await user_repo.find_by_name(token)
+        
+        if db_user and not db_user.get("is_deleted", False):
+            # User found in database
+            user_id = str(db_user.get("_id", ""))
+            user_type = db_user.get("user_type", "collaborator")
+            
+            # Map user_type to roles
+            roles = []
+            if user_type == "admin":
+                roles = ["admin", "collaborator"]
+            elif user_type == "responsible":
+                roles = ["responsible"]
+            elif user_type == "collaborator":
+                roles = ["collaborator"]
+            
+            return {
+                "sub": user_id,
+                "email": db_user.get("email", token),
+                "preferred_username": db_user.get("name", token),
+                "name": db_user.get("name", ""),
+                "realm_access": {
+                    "roles": roles
+                },
+                "user_type": user_type,
+                "user_id": user_id,
+            }
+    except Exception as e:
+        # Database check failed, continue to error
+        pass
+    
+    # User not found in either mockusers.json or database
+    available_users = []
+    try:
+        mock_users = load_mock_users()
+        users_dict = mock_users.get("users", {})
         available_users = [u.get("email", u.get("username", "unknown")) for u in users_dict.values()]
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid mock token. Use user email or username as token. Available users: {', '.join(available_users)}",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-
-    return {
-        "sub": user.get("id", token),
-        "email": user.get("email", token),
-        "preferred_username": user.get("username", token),
-        "name": user.get("name", ""),
-        "realm_access": {
-            "roles": user.get("roles", [])
-        },
-        "user_type": user.get("user_type", "collaborator"),
-        "user_id": user.get("id", token),
-    }
+    except FileNotFoundError:
+        pass
+    
+    error_msg = "Invalid mock token. Use user email as token."
+    if available_users:
+        error_msg += f" Available mock users: {', '.join(available_users)}"
+    error_msg += " Or use the email of a user created in the system."
+    
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=error_msg,
+        headers={"WWW-Authenticate": "Bearer"}
+    )
 
 
 async def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Dict:

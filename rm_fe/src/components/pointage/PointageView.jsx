@@ -499,6 +499,55 @@ export function PointageView() {
       })),
   ];
 
+  // Calculate total hours for the current week
+  const calculateWeeklyHours = () => {
+    let totalHours = 0;
+    
+    // Create a map of edited entries to use edited values instead of original
+    const editedEntriesMap = new Map();
+    Object.keys(editingEntries).forEach(id => {
+      if (!id.startsWith('new-')) {
+        editedEntriesMap.set(id, editingEntries[id]);
+      }
+    });
+    
+    // Sum hours from all entries in the current week, using edited values if available
+    entries.forEach(entry => {
+      const editedEntry = editedEntriesMap.get(entry.id);
+      const heuresPassees = parseFloat(
+        editedEntry?.heures_passees ?? entry.heures_passees
+      ) || 0;
+      totalHours += heuresPassees;
+    });
+    
+    // Also include hours from new entries being created (not yet saved)
+    Object.keys(editingEntries).forEach(id => {
+      if (id.startsWith('new-')) {
+        const entry = editingEntries[id];
+        if (entry.heures_passees) {
+          const entryDate = entry.date_pointage || (selectedDay ? formatDate(weekDays[selectedDay - 1]) : null);
+          if (entryDate) {
+            const entryDateObj = new Date(entryDate);
+            const weekStart = new Date(currentWeekStart);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekEnd.getDate() + 4); // Friday
+            
+            if (entryDateObj >= weekStart && entryDateObj <= weekEnd) {
+              const heuresPassees = parseFloat(entry.heures_passees) || 0;
+              totalHours += heuresPassees;
+            }
+          }
+        }
+      }
+    });
+    
+    return Math.max(0, totalHours); // Ensure non-negative
+  };
+
+  const weeklyHours = calculateWeeklyHours();
+  const targetHours = 35;
+  const progressPercentage = Math.min((weeklyHours / targetHours) * 100, 100);
+
   return (
     <div className="flex h-[calc(100vh-73px)] flex-col">
       <div className="flex-1 flex flex-col">
@@ -511,13 +560,47 @@ export function PointageView() {
               <ChevronLeft className="w-5 h-5 text-slate-700" />
             </button>
 
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center flex-1">
               <h2 className="text-base font-semibold text-slate-900">
                 {formatWeekRange(currentWeekStart)}
               </h2>
               <span className="text-xs font-bold text-slate-600 mt-0.5">
                 {getWeekCstr(currentWeekStart)}
               </span>
+              
+              {/* Weekly Hours Progress Bar */}
+              <div className="w-full max-w-xs mt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-slate-700">
+                    Weekly Hours
+                  </span>
+                  <span className="text-xs font-semibold text-slate-900">
+                    {weeklyHours.toFixed(1)} / {targetHours}h
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      weeklyHours > targetHours
+                        ? 'bg-red-500'
+                        : weeklyHours === targetHours
+                        ? 'bg-green-500'
+                        : 'bg-orange-500'
+                    }`}
+                    style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                  />
+                </div>
+                {weeklyHours === targetHours && (
+                  <span className="text-xs text-green-600 font-medium mt-0.5 block text-center">
+                    ✓ Week completed
+                  </span>
+                )}
+                {weeklyHours > targetHours && (
+                  <span className="text-xs text-red-600 font-medium mt-0.5 block text-center">
+                    ⚠ Hours exceeded
+                  </span>
+                )}
+              </div>
             </div>
 
             <button
@@ -530,7 +613,7 @@ export function PointageView() {
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 mb-6">
             <WeeklyCalendar
               weekDays={weekDays}
               entries={entries}
@@ -543,27 +626,29 @@ export function PointageView() {
           
           {selectedDay && (
             <div className="bg-white border-t border-slate-200 flex-1 flex flex-col overflow-hidden">
-              <div className="p-6 flex-1 flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-slate-900">
-                  Entries for {weekDays[selectedDay - 1].toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                </h3>
-                <button
-                  onClick={handleAddNewEntry}
-                  disabled={loading || lcLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Entry
-                </button>
+              <div className="pt-8 px-6 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Entries for {weekDays[selectedDay - 1].toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  </h3>
+                  <button
+                    onClick={handleAddNewEntry}
+                    disabled={loading || lcLoading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Entry
+                  </button>
+                </div>
               </div>
 
+              <div className="flex-1 flex flex-col overflow-hidden px-6 pb-6">
               {allEntries.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
                   No entries yet. Click "Add Entry" to create one.
                 </div>
               ) : (
-                <div ref={tableScrollContainerRef} className="flex-1 overflow-auto">
+                <div ref={tableScrollContainerRef} className="flex-1 overflow-y-auto border border-slate-200 rounded-lg" style={{ scrollbarWidth: 'thin' }}>
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">

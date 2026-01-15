@@ -69,8 +69,39 @@ async def health_check():
 @app.get("/auth/me")
 async def get_current_user_info(current_user: dict = CurrentUser):
     """Get current authenticated user information"""
+    from rm_be.database import UserRepository
+    from rm_be.api.utils import get_db_user_from_current
+    from bson import ObjectId
+    
+    user_info = {**current_user}
+    if current_user.get("user_type") == "collaborator":
+        try:
+            user_repo = UserRepository()
+            db_user = await get_db_user_from_current(current_user, user_repo)
+            responsible_id = db_user.get("responsible_id")
+            if responsible_id:
+                try:
+                    if isinstance(responsible_id, str) and ObjectId.is_valid(responsible_id):
+                        responsible = await user_repo.find_by_id(ObjectId(responsible_id))
+                    elif isinstance(responsible_id, ObjectId):
+                        responsible = await user_repo.find_by_id(responsible_id)
+                    else:
+                        responsible = None
+
+                    if responsible:
+                        user_info["responsible"] = {
+                            "id": str(responsible.get("_id", "")),
+                            "name": responsible.get("name", "Unknown"),
+                            "email": responsible.get("email", ""),
+                        }
+                except Exception:
+                    pass
+
+        except Exception:
+            pass
+
     return {
-        "user": current_user,
+        "user": user_info,
         "message": "Authentication successful"
     }
 

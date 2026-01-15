@@ -30,7 +30,8 @@ export function formatDateString(dateStr) {
 
 export function getWeekDays(weekStart) {
   const days = [];
-  for (let i = 0; i < 7; i++) {
+  // Only return weekdays (Monday-Friday, 5 days)
+  for (let i = 0; i < 5; i++) {
     const day = new Date(weekStart);
     day.setDate(weekStart.getDate() + i);
     days.push(day);
@@ -45,46 +46,33 @@ export function getDayName(dayOfWeek) {
 
 export function formatWeekRange(weekStart) {
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setDate(weekStart.getDate() + 4); // Friday (4 days after Monday)
 
   const options = { month: 'short', day: 'numeric' };
   return `${weekStart.toLocaleDateString('en-US', options)} - ${weekEnd.toLocaleDateString('en-US', options)}, ${weekEnd.getFullYear()}`;
 }
 
-export function getWeekCstr(weekStart) {
-  const year = weekStart.getFullYear();
-  const yearLastTwoDigits = year.toString().slice(-2);
-  const date = new Date(weekStart);
-  date.setHours(0, 0, 0, 0);
-
-  const dayOfWeek = date.getDay() || 7;
-  date.setDate(date.getDate() + 4 - dayOfWeek);
-
-  const yearStart = new Date(date.getFullYear(), 0, 1);
-  const weekNumber = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
-  const weekNumberStr = weekNumber.toString().padStart(2, '0');
-  return `S${yearLastTwoDigits}${weekNumberStr}`;
+/**
+ * Get ISO week number for a date (ISO 8601 standard)
+ * Returns week number (1-53)
+ */
+function getISOWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
 /**
- * Convert cstr_semaine from "YYYY-W%V" format (e.g., "2026-W01") to "SXXYY" format (e.g., "S2601")
+ * Generate cstr_semaine in SXXYY format from a week start date (Monday).
+ * Format: S + last 2 digits of year + 2-digit ISO week number
+ * Example: S2403 for week 3 of 2024
  */
-export function convertCstrSemaineToSXXYY(cstrSemaine) {
-  if (!cstrSemaine) return null;
-  
-  // Handle format like "2026-W01"
-  const match = cstrSemaine.match(/(\d{4})-W(\d{2})/);
-  if (match) {
-    const year = match[1];
-    const week = match[2];
-    const yearLastTwoDigits = year.slice(-2);
-    return `S${yearLastTwoDigits}${week}`;
-  }
-  
-  // If already in SXXYY format, return as is
-  if (cstrSemaine.match(/^S\d{4}$/)) {
-    return cstrSemaine;
-  }
-  
-  return null;
+export function getWeekCstr(weekStart) {
+  const year = weekStart.getFullYear();
+  const yearLastTwoDigits = year.toString().slice(-2);
+  const isoWeek = getISOWeek(weekStart);
+  const weekNumberStr = isoWeek.toString().padStart(2, '0');
+  return `S${yearLastTwoDigits}${weekNumberStr}`;
 }

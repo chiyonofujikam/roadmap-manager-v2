@@ -39,3 +39,56 @@ class ModificationRequestReview(BaseModel):
     """Schema for reviewing a modification request"""
     status: str
     review_comment: Optional[str] = None
+
+
+class LCItemUpdate(BaseModel):
+    """Schema for updating a single LC item cell"""
+    item_index: int
+    field: str
+    value: str
+    is_active: Optional[bool] = None
+
+
+class UserCreate(BaseModel):
+    """Schema for creating a new user"""
+    name: str
+    email: Optional[str] = None
+    user_type: str
+    status: str = "active"
+    responsible_id: Optional[str] = None
+
+
+class UserUpdate(BaseModel):
+    """Schema for updating an existing user"""
+    name: Optional[str] = None
+    email: Optional[str] = None
+    user_type: Optional[str] = None
+    status: Optional[str] = None
+    responsible_id: Optional[str] = None
+
+
+class ActiveLCUpdate(BaseModel):
+    """Schema for setting the active conditional list"""
+    lc_name: str
+
+
+class LCItemCreate(BaseModel):
+    """Schema for creating a new LC item"""
+    clef_imputation: str
+    libelle: str
+    fonction: str
+    is_active: bool = True
+
+
+class ConditionalListCreate(BaseModel):
+    """Schema for creating a new conditional list"""
+    name: str
+    description: Optional[str] = None
+    items: list[LCItemCreate]
+
+
+class LCMergeRequest(BaseModel):
+    """Schema for merging items into an existing LC"""
+    lc_name: str
+    items: list[LCItemCreate]
+    remove_duplicates: bool = True

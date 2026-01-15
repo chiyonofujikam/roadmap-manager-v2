@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Download } from 'lucide-react';
 import { api } from '../../lib/api';
-import { convertCstrSemaineToSXXYY } from '../../utils/dateUtils';
 import { useNotification } from '../../contexts/NotificationContext';
 import * as XLSX from 'xlsx';
 
@@ -54,15 +53,12 @@ export function TeamPointageTable() {
     }
   };
 
-  // Get unique CSTR week values in SXXYY format
+  // Get unique CSTR week values (already in SXXYY format)
   const uniqueCstrWeeks = useMemo(() => {
     const weeks = new Set();
     allEntries.forEach(entry => {
       if (entry.cstr_semaine) {
-        const sxxyy = convertCstrSemaineToSXXYY(entry.cstr_semaine);
-        if (sxxyy) {
-          weeks.add(sxxyy);
-        }
+        weeks.add(entry.cstr_semaine);
       }
     });
     return Array.from(weeks).sort();
@@ -78,6 +74,45 @@ export function TeamPointageTable() {
     };
   }, [allEntries]);
 
+  // Calculate total hours per week per user
+  const weeklyHoursPerUser = useMemo(() => {
+    const hoursMap = new Map();
+    
+    allEntries.forEach(entry => {
+      if (entry.cstr_semaine && entry.user_name && entry.heures_passees) {
+        const key = `${entry.cstr_semaine}_${entry.user_name}`;
+        const currentHours = hoursMap.get(key) || 0;
+        const heuresPassees = parseFloat(entry.heures_passees) || 0;
+        hoursMap.set(key, currentHours + heuresPassees);
+      }
+    });
+    
+    return hoursMap;
+  }, [allEntries]);
+
+  // Check if a week has exactly 35 hours for a user
+  const getWeekStatus = (cstrSemaine, userName) => {
+    if (!cstrSemaine || !userName) return null;
+    const key = `${cstrSemaine}_${userName}`;
+    const totalHours = weeklyHoursPerUser.get(key) || 0;
+    return totalHours === 35 ? 'complete' : 'incomplete';
+  };
+
+  // Format date string helper function
+  const formatDateString = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Filter entries based on all filter criteria
   const filteredEntries = useMemo(() => {
     return allEntries.filter(entry => {
@@ -87,11 +122,8 @@ export function TeamPointageTable() {
       }
 
       // Filter by CSTR week
-      if (filterCstrWeek) {
-        const entryCstr = convertCstrSemaineToSXXYY(entry.cstr_semaine);
-        if (entryCstr !== filterCstrWeek) {
-          return false;
-        }
+      if (filterCstrWeek && entry.cstr_semaine !== filterCstrWeek) {
+        return false;
       }
 
       // Filter by date
@@ -144,6 +176,22 @@ export function TeamPointageTable() {
     filterStatus,
   ]);
 
+  // Group filtered entries by collaborator
+  const groupedEntries = useMemo(() => {
+    const groups = new Map();
+    
+    filteredEntries.forEach(entry => {
+      const userName = entry.user_name || 'Unknown';
+      if (!groups.has(userName)) {
+        groups.set(userName, []);
+      }
+      groups.get(userName).push(entry);
+    });
+    
+    // Convert to array and sort by user name
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredEntries]);
+
   const handleStatusChange = async (entryId, newStatus) => {
     try {
       setUpdatingStatus(prev => new Set(prev).add(entryId));
@@ -185,26 +233,12 @@ export function TeamPointageTable() {
     );
   };
 
-  const formatDateString = (dateStr) => {
-    if (!dateStr) return '-';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('fr-FR', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit' 
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const handleExportToExcel = () => {
     // Prepare data for Excel export
     const excelData = filteredEntries.map(entry => ({
       'User': entry.user_name,
       'Date': formatDateString(entry.date_pointage),
-      'CSTR Week': convertCstrSemaineToSXXYY(entry.cstr_semaine) || '',
+      'CSTR Week': entry.cstr_semaine || '',
       'Clef d\'imputation': entry.clef_imputation || '',
       'Libellé': entry.libelle || '',
       'Fonction': entry.fonction || '',
@@ -518,60 +552,92 @@ export function TeamPointageTable() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {filteredEntries.length === 0 ? (
+            {groupedEntries.length === 0 ? (
               <tr>
                 <td colSpan="10" className="px-4 py-8 text-center text-slate-500">
                   No entries match the current filters.
                 </td>
               </tr>
             ) : (
-              filteredEntries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="text-sm font-medium text-slate-900">
-                      {entry.user_name}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
-                    {formatDateString(entry.date_pointage)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-900">
-                    {entry.clef_imputation || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-900">
-                    {entry.libelle || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-900">
-                    {entry.fonction || '-'}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
-                    {formatDateString(entry.date_besoin) || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-900">
-                    {entry.heures_theoriques || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-900">
-                    {entry.heures_passees || '-'}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <select
-                      value={entry.status || 'draft'}
-                      onChange={(e) => handleStatusChange(entry.id, e.target.value)}
-                      disabled={updatingStatus.has(entry.id)}
-                      className={`px-2 py-1 text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-blue-500 ${
-                        entry.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                        entry.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      } ${updatingStatus.has(entry.id) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="submitted">Submitted</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">
-                    {entry.commentaires || '-'}
-                  </td>
-                </tr>
+              groupedEntries.map(([userName, userEntries]) => (
+                <Fragment key={userName}>
+                  {/* Collaborator Header Row */}
+                  <tr className="bg-slate-100 border-t-2 border-slate-300">
+                    <td colSpan="10" className="px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900">
+                            {userName}
+                          </span>
+                          <span className="text-xs text-slate-600">
+                            ({userEntries.length} {userEntries.length === 1 ? 'entry' : 'entries'})
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600">
+                          Total Hours: {userEntries.reduce((sum, e) => sum + (parseFloat(e.heures_passees) || 0), 0).toFixed(1)}h
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                  {/* Collaborator Entries */}
+                  {userEntries.map((entry) => {
+                    const weekStatus = getWeekStatus(entry.cstr_semaine, entry.user_name);
+                    const rowBgColor = weekStatus === 'complete' 
+                      ? 'bg-green-50 hover:bg-green-100' 
+                      : weekStatus === 'incomplete'
+                      ? 'bg-orange-50 hover:bg-orange-100'
+                      : 'hover:bg-slate-50';
+                    
+                    return (
+                    <tr key={entry.id} className={`${rowBgColor} transition-colors`}>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm font-medium text-slate-900">
+                          {entry.user_name}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
+                        {formatDateString(entry.date_pointage)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-900">
+                        {entry.clef_imputation || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-900">
+                        {entry.libelle || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-900">
+                        {entry.fonction || '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-900">
+                        {formatDateString(entry.date_besoin) || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-900">
+                        {entry.heures_theoriques || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-900">
+                        {entry.heures_passees || '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <select
+                          value={entry.status || 'draft'}
+                          onChange={(e) => handleStatusChange(entry.id, e.target.value)}
+                          disabled={updatingStatus.has(entry.id)}
+                          className={`px-2 py-1 text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-blue-500 ${
+                            entry.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                            entry.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          } ${updatingStatus.has(entry.id) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="submitted">Submitted</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">
+                        {entry.commentaires || '-'}
+                      </td>
+                    </tr>
+                    );
+                  })}
+                </Fragment>
               ))
             )}
           </tbody>

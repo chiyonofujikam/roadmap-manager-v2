@@ -53,7 +53,7 @@ export function WeeklyCalendar({ weekDays, entries, selectedDay, selectedEntryId
   };
 
   return (
-    <div className="grid grid-cols-7 gap-3 p-3">
+    <div className="grid grid-cols-5 gap-3 p-3">
       {weekDays.map((day, index) => {
         const dayOfWeek = index + 1;
         const dayEntries = getEntriesForDay(dayOfWeek);

@@ -52,6 +52,9 @@ uv run python -m rm_be.scripts.seed_users
 echo Seeding LC data...
 uv run python -m rm_be.scripts.seed_lc_data
 
+echo Seeding pointage entries...
+uv run python -m rm_be.scripts.seed_entries
+
 cd ..
 
 echo.
@@ -72,6 +75,15 @@ if not exist .env (
 
 cd ..
 
+echo.
+echo ========================================
+echo Build and setup completed!
+echo ========================================
+echo.
+echo Database initialized with:
+echo   - Users from mockusers.json
+echo   - LC data
+echo   - Pointage entries from mock_entries.json (all with draft status)
 echo.
 echo ========================================
 echo Starting services...

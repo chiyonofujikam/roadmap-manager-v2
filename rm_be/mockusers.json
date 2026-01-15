@@ -2,34 +2,34 @@
   "users": {
     "admin@example.com": {
       "id": "admin-001",
-      "username": "admin",
+      "username": "PALLAS Fabrice",
       "email": "admin@example.com",
-      "name": "Admin User",
+      "name": "PALLAS Fabrice",
       "user_type": "admin",
       "roles": ["admin", "collaborator"],
       "password": "admin123"
     },
     "responsible@example.com": {
       "id": "responsible-001",
-      "username": "responsible",
+      "username": "CAUSIT Arnauld",
       "email": "responsible@example.com",
-      "name": "Responsible User",
+      "name": "CAUSIT Arnauld",
       "user_type": "responsible",
       "roles": ["responsible"],
       "password": "responsible123"
     },
     "responsible2@example.com": {
       "id": "responsible-002",
-      "username": "responsible2",
+      "username": "Erwin LE COZ",
       "email": "responsible2@example.com",
-      "name": "Responsible 2",
+      "name": "Erwin LE COZ",
       "user_type": "responsible",
       "roles": ["responsible"],
       "password": "responsible123"
     },
     "collaborator1@example.com": {
       "id": "collab-001",
-      "username": "collaborator1",
+      "username": "Imane Nazih",
       "email": "collaborator1@example.com",
       "name": "Imane Nazih",
       "user_type": "collaborator",
@@ -39,7 +39,7 @@
     },
     "collaborator2@example.com": {
       "id": "collab-002",
-      "username": "collaborator2",
+      "username": "Oumaima Yahya",
       "email": "collaborator2@example.com",
       "name": "Oumaima Yahya",
       "user_type": "collaborator",
@@ -49,7 +49,7 @@
     },
     "collaborator3@example.com": {
       "id": "collab-003",
-      "username": "collaborator3",
+      "username": "Karim Gani",
       "email": "collaborator3@example.com",
       "name": "Karim Gani",
       "user_type": "collaborator",

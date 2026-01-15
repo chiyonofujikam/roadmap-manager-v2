@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 
-// Available mock users for testing
+// Available mock users for testing (names from rm_be/mockusers.json)
 const MOCK_USERS = [
-  { email: 'admin@example.com', label: 'Admin User' },
-  { email: 'responsible@example.com', label: 'Responsible User' },
-  { email: 'collaborator1@example.com', label: 'Collaborator 1' },
-  { email: 'collaborator2@example.com', label: 'Collaborator 2' },
-  { email: 'collaborator3@example.com', label: 'Collaborator 3' },
+  { email: 'admin@example.com', label: 'PALLAS Fabrice', userType: 'admin' },
+  { email: 'responsible@example.com', label: 'CAUSIT Arnauld', userType: 'responsible' },
+  { email: 'responsible2@example.com', label: 'Erwin LE COZ', userType: 'responsible' },
+  { email: 'collaborator1@example.com', label: 'Imane Nazih', userType: 'collaborator' },
+  { email: 'collaborator2@example.com', label: 'Oumaima Yahya', userType: 'collaborator' },
+  { email: 'collaborator3@example.com', label: 'Karim Gani', userType: 'collaborator' },
 ];
 
 export function LoginForm() {
@@ -42,9 +43,6 @@ export function LoginForm() {
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
             Roadmap Manager
           </h1>
-          <p className="text-slate-600">
-            Sign in with your email (Mock Authentication)
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -61,9 +59,6 @@ export function LoginForm() {
               placeholder="admin@example.com"
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Use your email as the authentication token
-            </p>
           </div>
 
           {error && (

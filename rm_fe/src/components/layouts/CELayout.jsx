@@ -37,6 +37,11 @@ export function CELayout({ children }) {
             <div className="text-right">
               <p className="text-sm font-medium text-slate-900">{user?.name || user?.email}</p>
               <p className="text-xs text-slate-500">{user?.user_type || 'collaborator'}</p>
+              {user?.responsible?.name && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Responsible: {user.responsible.name}
+                </p>
+              )}
             </div>
             <button
               onClick={() => signOut()}
